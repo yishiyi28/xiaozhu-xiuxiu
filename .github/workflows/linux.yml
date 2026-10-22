@@ -57,17 +57,17 @@ jobs:
           mkdir -p "$RUNNER_TEMP/appimage smoke"
           cd "$RUNNER_TEMP/appimage smoke"
           xvfb-run -a env -u WAYLAND_DISPLAY APPIMAGE_EXTRACT_AND_RUN=1 \
-            "$GITHUB_WORKSPACE"/dist/*.AppImage --demo --screenshot "xuan demo.png"
-          test -s "xuan demo.png"
+            "$GITHUB_WORKSPACE"/dist/*.AppImage --demo --screenshot "xiaozhu-xiuxiu demo.png"
+          test -s "xiaozhu-xiuxiu demo.png"
       - name: Install Debian package
         run: sudo apt-get install -y ./dist/*.deb
       - name: Native X11 smoke test
-        run: xvfb-run -a xuan --demo --screenshot /tmp/xuan.png
+        run: xvfb-run -a xiaozhu-xiuxiu --demo --screenshot /tmp/xuan.png
       - name: Native clipboard test
         run: xvfb-run -a env -u WAYLAND_DISPLAY cargo test --locked --bin xiaozhu-xiuxiu system_clipboard_images_and_files_paste_from_another_process -- --ignored --test-threads=1
       - name: Remove Debian package
         run: |
-          sudo apt-get remove -y xuan
+          sudo apt-get remove -y xiaozhu-xiuxiu
           test ! -e /usr/bin/xiaozhu-xiuxiu
           test ! -e /usr/share/applications/com.xiaozhu.xiuxiu.desktop
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
