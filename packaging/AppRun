@@ -21,6 +21,6 @@ if [ -n "$host_version" ] && [ "$host_version" != "$bundled_version" ] &&
 fi
 export XDG_DATA_DIRS="$appdir/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 
-# --library-path applies only to Xuan, so spawned host programs retain their own
+# --library-path applies only to 小猪修修, so spawned host programs retain their own
 # libc. Preserve the caller's working directory and arguments.
-exec "$loader" --library-path "$libraries" "$appdir/usr/bin/xuan" "$@"
+exec "$loader" --library-path "$libraries" "$appdir/usr/bin/xiaozhu-xiuxiu" "$@"
