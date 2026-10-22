@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${1:-} == --plugin-api-version ]]; then
+    echo 0
+    exit 0
+fi
+if [[ $# != 2 || $1 != --appdir ]]; then
+    printf 'Usage: %s --appdir DIRECTORY\n' "$0" >&2
+    exit 1
+fi
+
+# Input plugins run after linuxdeploy patches ELF files, before image creation.
+exec python3 "$(dirname -- "${BASH_SOURCE[0]}")/package-native.py" --bundle-glibc "$2"

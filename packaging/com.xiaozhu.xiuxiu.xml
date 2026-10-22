@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-xiaozhu-project">
+    <comment>小猪修修 image project</comment>
+    <glob pattern="*.xuan"/>
+    <icon name="com.xiaozhu.xiuxiu"/>
+    <sub-class-of type="application/zip"/>
+  </mime-type>
+</mime-info>

@@ -1,0 +1,259 @@
+use egui::{Color32, FontId, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
+use xuan::i18n::tr;
+
+use super::{EditorApp, theme};
+
+pub(super) fn title_bar(ctx: &egui::Context, id: &'static str) -> egui::TopBottomPanel {
+    egui::TopBottomPanel::top(id).exact_height(32.0).frame(
+        egui::Frame::new()
+            .fill(theme::TITLEBAR)
+            .corner_radius(egui::CornerRadius {
+                nw: theme::window_corner_radius(ctx),
+                ne: theme::window_corner_radius(ctx),
+                sw: 0,
+                se: 0,
+            })
+            .inner_margin(egui::Margin::symmetric(14, 5)),
+    )
+}
+
+pub(super) fn status_bar(ctx: &egui::Context, id: &'static str) -> egui::TopBottomPanel {
+    egui::TopBottomPanel::bottom(id).exact_height(30.0).frame(
+        egui::Frame::new()
+            .fill(theme::PANEL)
+            .corner_radius(egui::CornerRadius {
+                nw: 0,
+                ne: 0,
+                sw: theme::window_corner_radius(ctx),
+                se: theme::window_corner_radius(ctx),
+            })
+            .inner_margin(egui::Margin::symmetric(18, 4)),
+    )
+}
+
+impl EditorApp {
+    pub(super) fn window_controls(&mut self, ui: &mut egui::Ui) {
+        let focused = ui.input(|i| i.viewport().focused.unwrap_or(true));
+        let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+        let (group, _) = ui.allocate_exact_size(vec2(62.0, 22.0), Sense::hover());
+        let hovered = ui.rect_contains_pointer(group);
+        for (index, color, label) in [
+            (0, Color32::from_rgb(255, 95, 87), tr("Close window")),
+            (1, Color32::from_rgb(254, 188, 46), tr("Minimize window")),
+            (
+                2,
+                Color32::from_rgb(40, 200, 64),
+                if maximized {
+                    tr("Restore window")
+                } else {
+                    tr("Maximize window")
+                },
+            ),
+        ] {
+            let center = pos2(group.left() + 7.0 + index as f32 * 20.0, group.center().y);
+            let rect = Rect::from_center_size(center, vec2(18.0, 22.0));
+            let response = ui.interact(
+                rect,
+                ui.id().with(("window_control", index)),
+                Sense::click(),
+            );
+            response
+                .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+            let color = if focused || hovered {
+                color
+            } else {
+                Color32::from_gray(83)
+            };
+            ui.painter().circle_filled(
+                center,
+                6.0,
+                if response.is_pointer_button_down_on() {
+                    color.gamma_multiply(0.75)
+                } else {
+                    color
+                },
+            );
+            ui.painter().circle_stroke(
+                center,
+                6.0,
+                Stroke::new(0.6_f32, Color32::from_black_alpha(65)),
+            );
+            if hovered || response.has_focus() {
+                let stroke = Stroke::new(1.0_f32, Color32::from_black_alpha(170));
+                match index {
+                    0 => {
+                        ui.painter().line_segment(
+                            [center - vec2(2.3, 2.3), center + vec2(2.3, 2.3)],
+                            stroke,
+                        );
+                        ui.painter().line_segment(
+                            [center + vec2(-2.3, 2.3), center + vec2(2.3, -2.3)],
+                            stroke,
+                        );
+                    }
+                    1 => {
+                        ui.painter().line_segment(
+                            [center - vec2(3.0, 0.0), center + vec2(3.0, 0.0)],
+                            stroke,
+                        );
+                    }
+                    _ => {
+                        ui.painter().rect_stroke(
+                            Rect::from_center_size(center, vec2(5.0, 5.0)),
+                            0.0,
+                            stroke,
+                            StrokeKind::Inside,
+                        );
+                    }
+                }
+            }
+            if response.clicked() {
+                match index {
+                    0 => {
+                        // Route through the same save/cancel flow as a window-manager close.
+                        if self.develop.is_some() || !self.inactive_develop.is_empty() {
+                            self.request_develop_close(super::develop::DevelopClose::Window);
+                        } else if self.sessions.iter().any(|s| s.history.dirty()) {
+                            if let Some(job) = &self.job {
+                                job.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                            }
+                            self.close_app = true;
+                        } else {
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                    }
+                    1 => ui
+                        .ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                    _ => ui
+                        .ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized)),
+                }
+            }
+            response.on_hover_text(label);
+        }
+        ui.add_space(8.0);
+    }
+
+    pub(super) fn titlebar_drag(&self, ui: &mut egui::Ui) {
+        let (rect, response) = ui.allocate_exact_size(
+            vec2(ui.available_width().max(0.0), 22.0),
+            Sense::click_and_drag(),
+        );
+        let title = if let Some(develop) = &self.develop {
+            format!("{} — {}", develop.title, tr("Develop"))
+        } else {
+            self.session().map_or("小猪修修".into(), |s| {
+                format!("{}{}", s.title, if s.history.dirty() { "  •" } else { "" })
+            })
+        };
+        let center = pos2(ui.ctx().content_rect().center().x, rect.center().y);
+        // Keep the title centered on the window and ellipsize before it reaches the menus.
+        let half_width = (center.x - rect.left()).min(rect.right() - center.x) - 12.0;
+        if half_width > 0.0 {
+            let galley = egui::WidgetText::from(title).into_galley(
+                ui,
+                Some(egui::TextWrapMode::Truncate),
+                half_width * 2.0,
+                FontId::proportional(12.0),
+            );
+            ui.painter().galley_with_override_text_color(
+                center - galley.size() / 2.0,
+                galley,
+                theme::MUTED,
+            );
+        }
+        if response.double_clicked() {
+            let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+        } else if response.drag_started_by(egui::PointerButton::Primary) {
+            // A native drag grabs the pointer, so let clicks finish before handing it off.
+            start_native_drag(ui.ctx(), egui::ViewportCommand::StartDrag);
+        }
+    }
+
+    /// Undecorated Wayland/X11 windows need client-provided edge hit targets.
+    pub(super) fn window_resize(&self, ctx: &egui::Context) {
+        if ctx.input(|i| {
+            i.viewport().maximized.unwrap_or(false) || i.viewport().fullscreen.unwrap_or(false)
+        }) {
+            return;
+        }
+        let screen = ctx.content_rect();
+        for (index, (rect, direction, cursor)) in resize_regions(screen).into_iter().enumerate() {
+            egui::Area::new(egui::Id::new(("window_resize", index)))
+                .order(egui::Order::Foreground)
+                .fixed_pos(rect.min)
+                .movable(false)
+                .show(ctx, |ui| {
+                    let (_, response) = ui.allocate_exact_size(rect.size(), Sense::drag());
+                    if response.hovered() || response.dragged() {
+                        ctx.set_cursor_icon(cursor);
+                    }
+                    if response.is_pointer_button_down_on()
+                        && ui.input(|i| i.pointer.primary_pressed())
+                    {
+                        start_native_drag(ctx, egui::ViewportCommand::BeginResize(direction));
+                    }
+                });
+        }
+    }
+}
+
+fn start_native_drag(ctx: &egui::Context, command: egui::ViewportCommand) {
+    ctx.send_viewport_cmd(command);
+    // The compositor can consume the release event (notably on Wayland).
+    // End egui's gesture now so the next drag does not need a clearing click.
+    ctx.stop_dragging();
+    ctx.input_mut(|input| input.pointer = egui::PointerState::default());
+}
+
+fn resize_regions(rect: Rect) -> [(Rect, egui::ResizeDirection, egui::CursorIcon); 8] {
+    use egui::{CursorIcon as C, ResizeDirection as D};
+    let (l, r, t, b) = (rect.left(), rect.right(), rect.top(), rect.bottom());
+    let edge = 4.0;
+    let corner = 10.0;
+    [
+        (
+            Rect::from_min_max(pos2(l + corner, t), pos2(r - corner, t + edge)),
+            D::North,
+            C::ResizeVertical,
+        ),
+        (
+            Rect::from_min_max(pos2(l + corner, b - edge), pos2(r - corner, b)),
+            D::South,
+            C::ResizeVertical,
+        ),
+        (
+            Rect::from_min_max(pos2(l, t + corner), pos2(l + edge, b - corner)),
+            D::West,
+            C::ResizeHorizontal,
+        ),
+        (
+            Rect::from_min_max(pos2(r - edge, t + corner), pos2(r, b - corner)),
+            D::East,
+            C::ResizeHorizontal,
+        ),
+        (
+            Rect::from_min_max(pos2(l, t), pos2(l + corner, t + corner)),
+            D::NorthWest,
+            C::ResizeNwSe,
+        ),
+        (
+            Rect::from_min_max(pos2(r - corner, t), pos2(r, t + corner)),
+            D::NorthEast,
+            C::ResizeNeSw,
+        ),
+        (
+            Rect::from_min_max(pos2(l, b - corner), pos2(l + corner, b)),
+            D::SouthWest,
+            C::ResizeNeSw,
+        ),
+        (
+            Rect::from_min_max(pos2(r - corner, b - corner), pos2(r, b)),
+            D::SouthEast,
+            C::ResizeNwSe,
+        ),
+    ]
+}

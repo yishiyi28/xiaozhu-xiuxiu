@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=小猪修修
+GenericName=Image Editor
+Comment=Compose and edit images with layers, masks, and adjustments
+Exec=xiaozhu-xiuxiu %F
+Icon=com.xiaozhu.xiuxiu
+Terminal=false
+Categories=Graphics;2DGraphics;RasterGraphics;
+MimeType=application/x-xiaozhu-project;image/png;image/jpeg;image/tiff;image/webp;image/bmp;image/gif;image/heic;image/heif;image/x-nikon-nef;image/x-nikon-nrw;image/x-canon-cr2;image/x-canon-cr3;image/x-canon-crw;image/x-fuji-raf;image/x-sony-arw;
+StartupNotify=true
+StartupWMClass=com.xiaozhu.xiuxiu
+Keywords=image;photo;layer;compositor;graphics;raw;nef;cr2;cr3;crw;raf;arw;develop;

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+xuan_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+xuan_prefix=${1:-"$HOME/.local"}
+xuan_binary="$xuan_root/bin/xiaozhu-xiuxiu"
+if [[ ! -f "$xuan_binary" ]]; then
+    xuan_binary="$xuan_root/target/release/xiaozhu-xiuxiu"
+fi
+if [[ ! -f "$xuan_binary" ]]; then
+    printf 'Build first with cargo build --release, or extract a release archive.\n' >&2
+    exit 1
+fi
+install -Dm755 "$xuan_binary" "$xuan_prefix/bin/xiaozhu-xiuxiu"
+if [[ -d "$xuan_root/share" ]]; then
+    install -d "$xuan_prefix/share"
+    cp -R --preserve=mode "$xuan_root/share/." "$xuan_prefix/share/"
+else
+    for xuan_icon in "$xuan_root"/assets/icons/hicolor/*/apps/com.xiaozhu.xiuxiu.png; do
+        install -Dm644 "$xuan_icon" "$xuan_prefix/share/icons/${xuan_icon#"$xuan_root/assets/icons/"}"
+    done
+    install -Dm644 "$xuan_root/packaging/com.xiaozhu.xiuxiu.desktop" "$xuan_prefix/share/applications/com.xiaozhu.xiuxiu.desktop"
+    install -Dm644 "$xuan_root/packaging/com.xiaozhu.xiuxiu.xml" "$xuan_prefix/share/mime/packages/com.xiaozhu.xiuxiu.xml"
+    install -Dm644 "$xuan_root/LICENSE" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/LICENSE"
+    install -Dm644 "$xuan_root/THIRD_PARTY.md" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/THIRD_PARTY.md"
+    install -Dm644 "$xuan_root/licenses/rawler-LGPL-2.1.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/rawler-LGPL-2.1.txt"
+    install -Dm644 "$xuan_root/licenses/tabler-icons-MIT.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/tabler-icons-MIT.txt"
+    install -Dm644 "$xuan_root/assets/fonts/Inter-LICENSE.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/Inter-LICENSE.txt"
+    install -Dm644 "$xuan_root/assets/fonts/DroidSansFallback-LICENSE.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/DroidSansFallback-LICENSE.txt"
+    for xuan_license in LICENSE-MIT LICENSE-APACHE; do
+        install -Dm644 "$xuan_root/vendor/egui-winit/$xuan_license" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/egui-winit/$xuan_license"
+    done
+fi
+# Remove the previous logo so desktops cannot select it as a scalable fallback.
+rm -f -- "$xuan_prefix/share/icons/hicolor/scalable/apps/com.xiaozhu.xiuxiu.svg"
+if command -v gtk-update-icon-cache >/dev/null; then
+    gtk-update-icon-cache -f -t "$xuan_prefix/share/icons/hicolor"
+fi
+if command -v update-desktop-database >/dev/null; then
+    update-desktop-database "$xuan_prefix/share/applications"
+fi
+if command -v update-mime-database >/dev/null; then
+    update-mime-database "$xuan_prefix/share/mime"
+fi
+printf 'Installed 小猪修修 to %s. Ensure %s/bin is in PATH.\n' "$xuan_prefix" "$xuan_prefix"

@@ -1,0 +1,576 @@
+Settings	设置
+Settings…	设置…
+General	常规
+General preferences	常规设置
+Language	语言
+Language changes apply immediately.	语言更改立即生效。
+Configuration file	配置文件
+Could not load settings	无法加载设置
+Could not save settings	无法保存设置
+Done	完成
+File	文件
+Edit	编辑
+Image	图像
+Layer	图层
+Select	选择
+Filter	滤镜
+View	视图
+Help	帮助
+New Canvas…	新建画布…
+Open…	打开…
+Open Image from Clipboard	从剪贴板打开图像
+Open Compositor Package…	打开 Compositor 项目包…
+Import Image as Layer…	将图像导入为图层…
+Save	保存
+Save As…	另存为…
+Export Image…	导出图像…
+Close Project	关闭项目
+Close RAW Develop	关闭 RAW 冲洗
+Undo	撤销
+Redo	重做
+Cut	剪切
+Copy	复制
+Copy Merged	合并复制
+Paste	粘贴
+Fill Foreground	填充前景色
+Fill Background	填充背景色
+Clear Pixels	清除像素
+Content-Aware Fill	内容识别填充
+Canvas Size…	画布大小…
+Image Size…	图像大小…
+Flip Canvas Horizontal	水平翻转画布
+Flip Canvas Vertical	垂直翻转画布
+New Layer	新建图层
+New Group	新建组
+New Mask Layer	新建蒙版图层
+New Adjustment Layer	新建调整图层
+New Filter Layer	新建滤镜图层
+Duplicate Layers	复制图层
+Merge Layers	合并图层
+Group Layers	编组图层
+Ungroup Layers	取消编组
+Flatten Image	拼合图像
+Delete Layers	删除图层
+Rename…	重命名…
+Flip Horizontal	水平翻转
+Flip Vertical	垂直翻转
+Add Layer Mask	添加图层蒙版
+Delete Mask	删除蒙版
+Clipping Mask	剪贴蒙版
+Move Out of Group	移出组
+Move Out of Parent	移出父组
+Develop RAW…	冲洗 RAW…
+Rasterize RAW Layer	栅格化 RAW 图层
+Select All	全选
+Deselect	取消选择
+Invert Selection	反向选择
+Load Selection	载入选区
+Feather 3 px	羽化 3 像素
+Fit Canvas	适合画布
+Actual Pixels	实际像素
+Zoom In	放大
+Zoom Out	缩小
+Show Transform Controls	显示变换控件
+Snap to Canvas and Layers	吸附到画布与图层
+Keyboard Shortcuts	键盘快捷键
+About 小猪修修	关于 小猪修修
+Close window	关闭窗口
+Minimize window	最小化窗口
+Maximize window	最大化窗口
+Restore window	还原窗口
+Close panel	关闭面板
+New canvas	新建画布
+Open project	打开项目
+Import image	导入图像
+Create a canvas or import an image.	创建画布或导入图像。
+A blank space for your next composition.	在空白画布上开始下一幅创作。
+Ready when you are	随时开始创作
+Move / Transform	移动 / 变换
+Marquee	选框
+Lasso	套索
+Magic Wand	魔棒
+Crop	裁剪
+Brush	画笔
+Eraser	橡皮擦
+Spot Healing	污点修复
+Clone Stamp	仿制图章
+Blur / Smudge	模糊 / 涂抹
+Gradient	渐变
+Shape	形状
+Text	文字
+Eyedropper	吸管
+Hand	抓手
+Zoom	缩放
+Click to select · Click outside to deselect · Drag to move · Handles to resize · Space to pan	单击选择 · 单击外部取消选择 · 拖动移动 · 手柄调整大小 · 空格平移
+Drag to select · Shift add · Alt subtract · Ctrl+D deselect · Delete clears	拖动选择 · Shift 添加 · Alt 减去 · Ctrl+D 取消选择 · Delete 清除
+Draw a selection · Shift add · Alt subtract · Enter closes polygon · Escape cancels	绘制选区 · Shift 添加 · Alt 减去 · Enter 闭合多边形 · Escape 取消
+Click to select similar colors · Shift add · Alt subtract · Ctrl+D deselect	单击选择相似颜色 · Shift 添加 · Alt 减去 · Ctrl+D 取消选择
+Drag to crop · Enter applies · Escape cancels · Space to pan	拖动裁剪 · Enter 应用 · Escape 取消 · 空格平移
+Drag to paint · [ ] size · Shift-click straight line · 1–0 opacity · Space to pan	拖动绘画 · [ ] 大小 · Shift 单击绘制直线 · 1–0 不透明度 · 空格平移
+Paint over blemishes · [ ] size · Space to pan	涂抹瑕疵进行修复 · [ ] 大小 · 空格平移
+Alt-click to set source · Drag to clone · [ ] size · Space to pan	Alt 单击设置来源 · 拖动仿制 · [ ] 大小 · 空格平移
+Drag to retouch · [ ] size · 1–0 strength · Space to pan	拖动修饰 · [ ] 大小 · 1–0 强度 · 空格平移
+Drag to draw gradient · Shift locks angle · Escape cancels	拖动绘制渐变 · Shift 锁定角度 · Escape 取消
+Drag to draw a new shape · Shift constrains proportions · Alt draws from center	拖动绘制形状 · Shift 约束比例 · Alt 从中心绘制
+Click to add text · Click text to edit · Use Move to transform	单击添加文字 · 单击文字编辑 · 使用移动工具变换
+Click to sample the composition · X swaps foreground and background	单击取样合成图像 · X 交换前景色与背景色
+Drag to pan · Scroll to zoom · Ctrl+0 fits canvas	拖动平移 · 滚动缩放 · Ctrl+0 适合画布
+Click to zoom in · Alt-click to zoom out · Ctrl+1 actual pixels	单击放大 · Alt 单击缩小 · Ctrl+1 实际像素
+Auto Select	自动选择
+Ignore Transparent Pixels	忽略透明像素
+Select layers only at visible pixels. Uncheck to select anywhere inside a layer's bounds.	仅通过可见像素选择图层。取消勾选后，可在图层边界内任意位置选择。
+Show Controls	显示控件
+Transform	变换
+Select a layer to transform	选择要变换的图层
+Width	宽度
+Height	高度
+Angle	角度
+Opacity	不透明度
+Size	大小
+Hardness	硬度
+Spacing	间距
+Flow	流量
+Strength	强度
+Smoothing	平滑
+Reduce hand jitter. Higher values make the brush follow farther behind the pointer. 0% turns smoothing off.	减少手部抖动。值越高，画笔跟随指针的延迟越大。设为 0% 可关闭平滑。
+Pen dynamics	数位笔动态
+Pressure: size	压力控制大小
+Pressure: opacity	压力控制不透明度
+Tilt: shape	倾斜控制形状
+Ellipse	椭圆
+Rectangle	矩形
+Rounded	圆角
+Radius	半径
+Freehand	自由绘制
+Polygonal	多边形
+Polygonal Lasso	多边形套索
+Replace	替换
+Add	添加
+Subtract	减去
+Intersect	交集
+Tolerance	容差
+Contiguous	连续
+Linear	线性
+Radial	径向
+Blur	模糊
+Smudge	涂抹
+Aligned	对齐
+Sample: All visible layers	取样：所有可见图层
+Alt-click on the canvas to set a clone source	在画布上 Alt 单击设置仿制来源
+This Layer	当前图层
+All Layers	所有图层
+Layers	图层
+No layers yet	暂无图层
+Layer contents	图层内容
+Layer Appearance	图层外观
+Blend	混合
+Normal	正常
+Multiply	正片叠底
+Screen	滤色
+Overlay	叠加
+Soft Light	柔光
+Hard Light	强光
+Darken	变暗
+Lighten	变亮
+Color Dodge	颜色减淡
+Color Burn	颜色加深
+Linear Dodge	线性减淡
+Linear Burn	线性加深
+Difference	差值
+Exclusion	排除
+Hue	色相
+Saturation	饱和度
+Color	颜色
+Luminosity	明度
+Lock layer	锁定图层
+Unlock layer	解锁图层
+Toggle visibility	切换可见性
+New layer (Ctrl+Shift+N)	新建图层 (Ctrl+Shift+N)
+Group layers (Ctrl+G)	编组图层 (Ctrl+G)
+Add layer mask	添加图层蒙版
+Add mask layer affecting layers below	添加影响下方图层的蒙版
+New adjustment layer	新建调整图层
+New filter layer	新建滤镜图层
+Delete layer	删除图层
+Collapse layers	折叠图层
+Expand layers	展开图层
+Mask	蒙版
+Mask · Image only	蒙版 · 仅当前图像
+Mask · Layers below	蒙版 · 下方图层
+Invert mask	反相蒙版
+Delete mask	删除蒙版
+Link Mask	链接蒙版
+Link	链接
+Unlink	取消链接
+Edit text…	编辑文字…
+Edit adjustment…	编辑调整…
+Edit filter…	编辑滤镜…
+Non-destructive effect layer	无损效果图层
+RAW · Embedded · Double-click to develop	RAW · 已嵌入 · 双击冲洗
+Foreground color	前景色
+Background color	背景色
+Swap colors (X)	交换颜色 (X)
+Default colors (D)	默认颜色 (D)
+Canvas size	画布大小
+Image size	图像大小
+Create canvas	创建画布
+Resolution	分辨率
+Anchor	锚点
+Transparent canvas · sRGB	透明画布 · sRGB
+Change the canvas bounds and anchor your composition.	更改画布边界和内容锚点。
+Scale the composition while preserving source pixels.	缩放合成图像并保留源像素。
+Cancel	取消
+Apply	应用
+OK	确定
+Working…	正在处理…
+Cancelled	已取消
+Preview	预览
+Reset	重置
+Rename Layer	重命名图层
+Save your changes?	保存更改？
+Some projects have unsaved changes.	部分项目有未保存的更改。
+Discard changes	放弃更改
+Couldn't complete the operation	无法完成操作
+Export image	导出图像
+Export…	导出…
+Format	格式
+Quality	质量
+JPEG preview · transparency is flattened onto white	JPEG 预览 · 透明区域将合成为白色
+sRGB · Transparent	sRGB · 透明
+Keyboard shortcuts	键盘快捷键
+New / Open / Save	新建 / 打开 / 保存
+Import image as layer	将图像导入为图层
+Undo / Redo	撤销 / 重做
+Duplicate / Merge / Group	复制 / 合并 / 编组
+Select all / Deselect	全选 / 取消选择
+Copy / Paste image	复制 / 粘贴图像
+Fit / Actual pixels	适合窗口 / 实际像素
+Move / Marquee / Lasso / Wand / Crop	移动 / 选框 / 套索 / 魔棒 / 裁剪
+Brush / Eraser / Heal / Clone / Blur	画笔 / 橡皮擦 / 修复 / 仿制 / 模糊
+Gradient / Shape / Eyedropper / Hand / Zoom	渐变 / 形状 / 吸管 / 抓手 / 缩放
+Brush size / Hardness	画笔大小 / 硬度
+Brush or layer opacity	画笔或图层不透明度
+Set clone source	设置仿制来源
+Swap / Reset colors	交换 / 重置颜色
+Pan canvas	平移画布
+Pan canvas horizontally	水平平移画布
+Horizontal wheel / Shift+wheel	水平滚轮 / Shift+滚轮
+Wheel over a slider or number	在滑块或数值上滚动
+Adjust value	调整数值
+Apply crop / Cancel gesture	应用裁剪 / 取消操作
+A space for your next composition.	为下一幅创作留一方天地。
+Native image editor · Rust + egui + wgpu	原生图像编辑器 · Rust + egui + wgpu
+Ported from Compositor by Wonder Assembly LLC.	移植自 Wonder Assembly LLC 的 Compositor。
+Free and open source, under the MIT license.	基于 MIT 许可证的免费开源软件。
+Add text…	添加文字…
+Edit Text	编辑文字
+Font	字体
+Search installed fonts	搜索已安装的字体
+No matching fonts	没有匹配的字体
+This font is unavailable. Editing uses a fallback font.	此字体不可用。编辑时将使用替代字体。
+Bold	粗体
+Italic	斜体
+Underline	下划线
+Strikethrough	删除线
+Left	左
+Right	右
+Top	上
+Bottom	下
+Center	居中
+Live preview · Ctrl+Enter to apply	实时预览 · Ctrl+Enter 应用
+Text applied	文字已应用
+Adjustments	调整
+Adjustment	调整
+Hue / Saturation	色相 / 饱和度
+Hue & Saturation	色相与饱和度
+Levels	色阶
+Curves	曲线
+Exposure	曝光
+Gradient Map	渐变映射
+Film Grain	胶片颗粒
+Invert	反相
+Gaussian Blur	高斯模糊
+Motion Blur	动感模糊
+Noise	噪点
+Lens Correction	镜头校正
+Original pixels · alpha-weighted histogram	原始像素 · 按透明度加权的直方图
+Input black	输入黑场
+Input white	输入白场
+Output black	输出黑场
+Output white	输出白场
+Gamma	伽马
+Output	输出
+Red	红色
+Green	绿色
+Blue	蓝色
+All	全部
+Reds	红色
+Yellows	黄色
+Greens	绿色
+Cyans	青色
+Blues	蓝色
+Magentas	洋红
+Colorize	着色
+Color range falloff	颜色范围衰减
+Range start	范围起点
+Range end	范围终点
+Falloff start	衰减起点
+Falloff end	衰减终点
+Invert selected color range	反转所选颜色范围
+Click to add a point · Drag points to reshape the curve	单击添加控制点 · 拖动控制点调整曲线
+Amount	数量
+Distance	距离
+Monochromatic	单色
+Offset	偏移
+Roughness	粗糙度
+New pattern	新图案
+Distortion	畸变
+Vignette	暗角
+Vignetting	暗角
+Highlights	高光
+Shadows	阴影
+Develop	冲洗
+Develop RAW	冲洗 RAW
+RAW adjustment	RAW 调整
+Undo RAW adjustment	撤销 RAW 调整
+Opening RAW…	正在打开 RAW…
+Decoding RAW sensor data…	正在解码 RAW 传感器数据…
+Updating preview…	正在更新预览…
+Developing full-resolution image…	正在冲洗全分辨率图像…
+Applying…	正在应用…
+Exporting 16-bit TIFF…	正在导出 16 位 TIFF…
+RAW embedded · 32-bit float processing · sRGB photo layer	已嵌入 RAW · 32 位浮点处理 · sRGB 照片图层
+RAW developed · Double-click the RAW layer to edit it again	RAW 已冲洗 · 双击 RAW 图层可再次编辑
+Embedded RAW layer with an sRGB photo render. Double-click the layer to return to Develop.	嵌入 RAW 数据的 sRGB 照片图层。双击图层可返回冲洗模式。
+Finish developing?	结束冲洗？
+Develop the image to keep your RAW adjustments in a project, or discard this Develop session.	冲洗图像以将 RAW 调整保存在项目中，或放弃本次冲洗。
+Develop the images to keep your RAW adjustments in projects, or discard all open Develop sessions.	冲洗图像以将 RAW 调整保存在项目中，或放弃所有打开的冲洗会话。
+Discard and close	放弃并关闭
+Keep developing	继续冲洗
+Retry preview	重试预览
+Unable to develop this RAW file	无法冲洗此 RAW 文件
+Natural	自然
+Landscape	风景
+Black & white	黑白
+Presets	预设
+Save settings…	保存设置…
+Load settings…	加载设置…
+RAW settings	RAW 设置
+Reset all Develop adjustments to defaults	将所有冲洗调整恢复为默认值
+Basic	基本
+Tone	色调
+Detail	细节
+Lens	镜头
+Masks	蒙版
+Info	信息
+White balance	白平衡
+As shot	拍摄时设置
+Temperature	色温
+Sampled neutral	中性色取样
+Pick neutral	选取中性色
+Daylight	日光
+Cloudy	阴天
+Shade	阴影
+Tungsten	钨丝灯
+Flash	闪光灯
+Tint	色调偏移
+Light	光线
+Auto exposure	自动曝光
+Brightness	亮度
+Contrast	对比度
+Whites	白色色阶
+Blacks	黑色色阶
+Presence	质感
+Clarity	清晰度
+Texture	纹理
+Dehaze	去雾
+Vibrance	自然饱和度
+Tone curve	色调曲线
+S curve	S 曲线
+Lift blacks	抬高黑场
+Color mixer	混色器
+Orange	橙色
+Yellow	黄色
+Aqua	青色
+Purple	紫色
+Magenta	洋红
+Lightness	明度
+Monochrome	黑白
+Red mix	红色混合
+Green mix	绿色混合
+Blue mix	蓝色混合
+Split toning	分离色调
+Shadow hue	阴影色相
+Shadow amount	阴影强度
+Highlight hue	高光色相
+Highlight amount	高光强度
+Balance	平衡
+Noise reduction	降噪
+Luminance	亮度
+Sharpening	锐化
+Threshold	阈值
+Manual lens correction	手动镜头校正
+Defringe	去边缘色差
+Geometry	几何
+Straighten	拉直
+Rotate left 90°	向左旋转 90°
+Rotate right 90°	向右旋转 90°
+Horizontal	水平
+Vertical	垂直
+Bounds as a fraction of the rotated image	以旋转后图像的比例设置边界
+Uncrop	取消裁剪
+Square	正方形
+Lens corrections are manual. The photo editor currently uses 8-bit sRGB; RAW data and Develop settings retain their original precision.	镜头校正需手动调整。照片编辑器目前使用 8 位 sRGB；RAW 数据和冲洗设置保留原始精度。
+Local adjustments	局部调整
+Add a mask, then drag over the photo to place it.	添加蒙版后，在照片上拖动以放置蒙版。
+Draw mask	绘制蒙版
+Show guides	显示辅助线
+Inverse	反转
+Feather	羽化
+Brush radius	画笔半径
+Clear brush	清除笔画
+Warmth	暖色
+Camera information	相机信息
+Source	来源
+Dimensions	尺寸
+Camera	相机
+Focal length	焦距
+Aperture	光圈
+Shutter	快门
+Decoded depth	解码位深
+RAW storage	RAW 存储
+Edited	调整后
+Original	原始
+Split	分割
+Side by side	并排
+Clipping	溢出警告
+Fit	适合窗口
+Full resolution	全分辨率
+Always use full-resolution preview	始终使用全分辨率预览
+Zoom in	放大
+Zoom out	缩小
+Scroll to zoom · Space-drag to pan · Ctrl+0 to fit	滚动缩放 · 按空格拖动平移 · Ctrl+0 适合窗口
+Zooming in loads full detail automatically. Use 100% to judge sharpening and noise reduction. Always using full resolution also applies it to Fit view and takes longer to update.	放大时自动加载完整细节。使用 100% 查看锐化与降噪效果。始终使用全分辨率也会应用于适合窗口视图，更新时间会更长。
+This image exceeds the GPU's full-resolution preview limit. Develop and TIFF export still use every source pixel.	此图像超出 GPU 全分辨率预览限制。冲洗和 TIFF 导出仍使用全部源像素。
+Click a neutral gray area to set white balance	单击中性灰色区域设置白平衡
+Drag on the image to place the selected mask	在图像上拖动以放置所选蒙版
+Film negative	胶片负片
+Negative	负片
+Convert negative to positive	将负片转换为正片
+Crop out the holder and borders, then analyze. Sample an unexposed film edge for a more accurate orange mask.	先裁去片夹和边框，再分析。取样未曝光的胶片边缘可更准确地校正橙色片基。
+Analyze crop	分析裁剪区域
+Pick film base	取样片基
+Black point	黑场
+Film gamma	胶片伽马
+Red balance	红色平衡
+Green balance	绿色平衡
+Blue balance	蓝色平衡
+Film calibration	胶片校准
+Film base is measured in linear camera RGB. Density range controls each channel's white point.	片基以相机线性 RGB 测量。密度范围控制各通道的白场。
+Red base	红色片基
+Green base	绿色片基
+Blue base	蓝色片基
+Red density	红色密度
+Green density	绿色密度
+Blue density	蓝色密度
+Use film color balance in the Negative tab instead of camera white balance.	请使用“负片”选项卡中的颜色平衡控件调整色彩。
+Click an unexposed film edge to sample the orange mask	单击未曝光的胶片边缘取样橙色片基
+Cannot sample this area. Choose a clear, unexposed film edge.	无法取样此区域。请选择清晰且未曝光的胶片边缘。
+Project saved	项目已保存
+Export cancelled	导出已取消
+Opened image from clipboard	已从剪贴板打开图像
+Clipboard image	剪贴板图像
+Pasted image	粘贴的图像
+Select a layer before cutting pixels.	剪切像素前请选择图层。
+Select a layer or make a selection before copying.	复制前请选择图层或创建选区。
+The selection is empty.	选区为空。
+The layer is locked	图层已锁定
+Select a RAW layer	请选择 RAW 图层
+Unlock the RAW layer before developing it	冲洗前请先解锁 RAW 图层
+Unlock the text layer to edit it	编辑前请先解锁文字图层
+The RAW layer is no longer available	RAW 图层已不可用
+The target project is no longer open	目标项目已关闭
+The system clipboard is unavailable	系统剪贴板不可用
+The clipboard does not contain an image or image file	剪贴板中没有图像或图像文件
+Only local image files can be pasted	只能粘贴本地图像文件
+Could not read the clipboard image	无法读取剪贴板图像
+Import Image	导入图像
+Copy Layers from Project	从项目复制图层
+Flip Layer	翻转图层
+Flip Canvas	翻转画布
+Fill	填充
+Paint	绘画
+Erase	擦除
+Add Text	添加文字
+Feather Selection	羽化选区
+Layer Opacity	图层不透明度
+Layer Visibility	图层可见性
+Layer Mask	图层蒙版
+Add Mask	添加蒙版
+Add Mask from Selection	从选区添加蒙版
+Toggle Mask	切换蒙版
+Reorder Layer	重排图层
+Remove Background	移除背景
+Remove Background (edge colors)	移除背景（边缘颜色）
+Nudge	微移
+Untitled	未命名
+Images and 小猪修修 projects	图像和 小猪修修 项目
+Open Compositor .comp package folder	打开 Compositor .comp 项目包文件夹
+Drag a crop area, then press Enter to apply	拖动选择裁剪区域，按 Enter 应用
+Click the canvas to place text	单击画布放置文字
+New canvas (Ctrl+N)	新建画布 (Ctrl+N)
+Hue/Saturation	色相/饱和度
+Grain	颗粒
+Add Noise	添加杂色
+Version	版本
+Exported	已导出
+Copied	已复制
+Unsaved changes	有未保存的更改
+Could not open	无法打开
+Could not save project	无法保存项目
+Could not copy to the system clipboard	无法复制到系统剪贴板
+Could not load RAW settings	无法加载 RAW 设置
+Saved 16-bit TIFF	已保存 16 位 TIFF
+Embedded	已嵌入
+Selection	选区
+Histogram	直方图
+Folder	文件夹
+Duplicate	复制
+Delete	删除
+Auto	自动
+Clipboard	剪贴板
+Invalid clipboard image pixels	剪贴板图像像素无效
+ within 小猪修修; system clipboard unavailable	（仅在 小猪修修 内；系统剪贴板不可用）
+ · Locked	 · 已锁定
+Save the 16-bit image with a .tif or .tiff extension	请使用 .tif 或 .tiff 扩展名保存 16 位图像
+The RAW worker stopped unexpectedly	RAW 处理任务意外停止
+The filter worker stopped unexpectedly	滤镜处理任务意外停止
+The editing worker stopped unexpectedly	编辑任务意外停止
+Red / cyan	红色 / 青色
+Blue / yellow	蓝色 / 黄色
+Merge Down / Selected	向下合并 / 合并所选图层
+Enable / Disable Mask	启用 / 禁用蒙版
+Link / Unlink Mask	链接 / 取消链接蒙版
+Enable / Disable	启用 / 禁用
+Link / Unlink	链接 / 取消链接
+Create / Release Clipping Mask	创建 / 释放剪贴蒙版
+Load Layer / Mask	载入图层 / 蒙版
+Recover unsaved work	恢复未保存的工作
+小猪修修 found projects that were not saved before it closed unexpectedly.	小猪修修 发现上次意外退出前未保存的工程。
+Unsaved project	未命名工程
+Restore	恢复
+Discard	丢弃
+Restore all	全部恢复
+Discard all	全部丢弃
+Snapshots stay on disk if you close this window.	关闭窗口后快照仍保留在磁盘上。
+Autosave interval	自动保存间隔
+Crash recovery snapshots unsaved projects. Set to 0 to disable.	崩溃恢复会为未保存工程创建快照。设为 0 可关闭。
+Recovered unsaved project	已恢复未保存的工程
+Could not recover project	恢复工程失败
+Could not discard recovery snapshot	删除恢复快照失败
+Unsharp Mask	USM 锐化
+High Pass	高反差保留
+Posterize	色调分离
+Pixelate	像素化
+Midpoint	中点
+Softness	柔和度

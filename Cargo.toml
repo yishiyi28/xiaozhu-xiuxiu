@@ -1,0 +1,79 @@
+[package]
+name = "xiaozhu-xiuxiu"
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.88"
+description = "小猪修修（原 XUAN）— 一个基于 Rust、wgpu 和 egui 的原生图层修图与合成软件"
+license = "MIT"
+repository = "https://github.com/yishiyi28/xiaozhu-xiuxiu"
+homepage = "https://github.com/yishiyi28/xiaozhu-xiuxiu"
+
+[lib]
+name = "xuan"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xiaozhu-xiuxiu"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+arboard = { version = "3.6", features = ["wayland-data-control"] }
+bytemuck = { version = "1.25", features = ["derive"] }
+half = "2.7"
+clap = { version = "4.6.7", features = ["derive"] }
+cosmic-text = "0.14.2"
+eframe = { version = "0.33.3", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland", "persistence"] }
+egui = "0.33.3"
+egui_extras = { version = "0.33.3", default-features = false, features = ["svg"] }
+heic-rs = "0.1.1"
+image = { version = "0.25.9", default-features = false, features = ["png", "jpeg", "tiff", "webp", "bmp", "gif"] }
+png = "0.18"
+qcms = "0.3"
+psd = "0.3.5"
+rawler = "=0.7.2"
+rayon = "1.11"
+raw-window-handle = "0.6"
+rfd = "0.15.4"
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+tempfile = "3"
+tiff = "0.11"
+toml = "0.8"
+url = "2.5"
+uuid = { version = "1.18", features = ["v4", "serde"] }
+wgpu = { version = "27.0.1", default-features = false, features = ["vulkan", "gles", "wgsl"] }
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+calloop = "0.13"
+calloop-wayland-source = "0.3"
+wayland-backend = { version = "0.3", features = ["client_system", "dlopen"] }
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "unstable", "staging"] }
+x11rb = { version = "0.13", features = ["xinput"] }
+
+[target.'cfg(windows)'.dependencies]
+wgpu = { version = "27.0.1", default-features = false, features = ["dx12"] }
+windows-sys = { version = "0.61", features = ["Win32_UI_Input_Pointer", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Graphics_Gdi"] }
+
+[dev-dependencies]
+pollster = "0.4"
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+wayland-server = "0.31"
+wayland-protocols = { version = "0.32", features = ["server"] }
+
+[patch.crates-io]
+# Preserve paste events when the clipboard contains an image without text.
+egui-winit = { path = "vendor/egui-winit" }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+appdir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+glibc="$appdir/usr/lib/glibc"
+loader="$glibc/ld-linux.so.2"
+libraries="$glibc:$appdir/usr/lib:$appdir/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Newer host GPU drivers may require a newer glibc. Use their matching system
+# loader only when that libc is newer; older hosts use the bundled pair.
+read -r bundled_version < "$glibc/version"
+host_version=$(getconf GNU_LIBC_VERSION 2>/dev/null || true)
+host_version=${host_version#glibc }
+if [ -n "$host_version" ] && [ "$host_version" != "$bundled_version" ] &&
+    [ "$(printf '%s\n' "$bundled_version" "$host_version" | sort -V | tail -n 1)" = "$host_version" ]; then
+    read -r system_loader < "$glibc/system-loader"
+    if [ -x "$system_loader" ]; then
+        loader="$system_loader"
+        libraries="$appdir/usr/lib:$appdir/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
+fi
+export XDG_DATA_DIRS="$appdir/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+# --library-path applies only to Xuan, so spawned host programs retain their own
+# libc. Preserve the caller's working directory and arguments.
+exec "$loader" --library-path "$libraries" "$appdir/usr/bin/xuan" "$@"

@@ -1,0 +1,42 @@
+# Project format
+
+A `.xuan` file is a ZIP archive containing `manifest.json` and lossless PNG assets. Version 1 uses `format: "me.silverl.xuan"`, a `document` object, and a `pixel_layers` list. Layer images are stored at `images/<UUID>.png`; masks use `images/<UUID>.mask.png`. Pixel bytes are excluded from JSON.
+
+The document records canvas dimensions, DPI, layer order, IDs, parent groups, clipping references, opacity, blending, visibility, locks, transforms, adjustment parameters, and optional live shape styles. Layers are stored bottom to top; each folder's subtree is composited together in hierarchy order. Masks have enabled/linked flags and an optional independent placement transform.
+
+Text layers also record an optional `text` object with UTF-8 content, font family, pixel size, RGBA color, and bold, italic, underline, and strikethrough flags. Their PNG assets preserve the rendered appearance when fonts are unavailable on another machine. Fonts are discovered from the system and are not embedded in the project; editing unavailable fonts uses the bundled Inter Variable fallback. Text is limited to 16 KiB and font sizes to 1–1024 pixels. Older version 1 files without text metadata remain supported.
+
+Transforms retain original source pixels. Optional perspective corners are normalized coordinates before affine scale/rotation/flip. Channel adjustments retain separate RGB curves/levels and seven hue ranges. Selections, current multi-selection, clipboard contents, and undo/redo snapshots are not serialized.
+
+Saving validates the document, writes a sibling temporary archive, flushes it, and atomically replaces the destination. Loading validates IDs, hierarchy, clipping cycles, transforms, dimensions, metadata size, decompressed asset size, and aggregate image/mask budgets. Assets are decoded in memory, never extracted using archive paths. `.comp` package reads reject symlinked assets and paths outside the package.
+
+Limits: 30,000 pixels per canvas/image dimension, 100 megapixels per canvas, 100 megapixels of layer assets plus 100 megapixels of masks, 10,000 layers, 64 nested group levels, 4 MiB manifest JSON, and 512 MiB encoded asset files.
+
+The importer accepts Compositor package versions 1–7, including Swift's alternating-key enum dictionaries, individual color channels, mask placement/link flags, grain parameters, and live shape styles. Import is one-way: Save creates a `.xuan` file and leaves the `.comp` package untouched.
+
+## High-depth assets
+
+Layer images and masks may be stored as 8-bit or 16-bit PNGs. Bit depth is read from the PNG color type; it is not encoded as a new manifest version. Sixteen-bit layer samples are retained through composition, masks, destructive and non-destructive filters, painting, retouching, and PNG/TIFF export. Masks with 16-bit PNG assets keep full-depth samples until an edit changes the 8-bit mask preview, at which point the high-depth companion is discarded.
+
+## Embedded RAW (version 2)
+
+Documents containing RAW layers are written as version 2, preventing older readers from silently dropping the source. Ordinary documents continue to use version 1, and the reader supports both versions.
+
+A RAW image layer has an optional `raw` object containing the original filename, camera metadata, and validated `DevelopSettings`. Its original bytes are stored in `raw/<layer UUID>.nef` (a legacy archive name used for every supported RAW format, including Canon, Fujifilm, and Sony sources); the current developed render stays in `images/<layer UUID>.png`. Loading restores the image without decoding the sensor data. Reopening Develop decodes the embedded bytes, so moving/deleting the original file does not break the project. Missing sources, invalid settings, and oversized sources fail validation. RAW byte buffers are shared by layer duplicates and history snapshots, and included in history's memory accounting.
+
+The archive allows up to 30,001 entries to accommodate an image, mask and RAW source for each layer. Aggregate embedded RAW bytes are limited to 512 MiB. Develop settings store crop/overlay coordinates relative to the full camera-oriented image, before the user’s quarter-turn rotation. `quarter_turns` stores 0–3 clockwise turns and defaults to 0 in older projects; curve knots and all numeric parameters are finite and range-checked. Develop's transient preview, comparison view, clipping indicators, worker state, and local undo history are not serialized.
+
+## Attached effect stacks (version 4)
+
+Documents with image children or filter layers use version 4. The reader still
+accepts versions 1–3. A mask, adjustment, or filter layer can name an image layer
+as its `parent`; image and folder children remain restricted to folders. Each
+image's effect children are evaluated in document order, bottom to top, before
+its opacity, blending, and clipping are composited with other images.
+
+Mask children use `standalone_mask: true` and the existing mask PNG assets. Their
+parent distinguishes image-only coverage from standalone masks over lower
+siblings. The `filter` field stores Gaussian Blur, Motion Blur, Add Noise, or Lens
+Correction settings. Parameters, hierarchy, and cycles are validated on load.
+Source pixels are retained; intermediate effect rasters are not saved. Legacy
+single image masks are promoted to child layers when opened in the editor.
