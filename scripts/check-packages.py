@@ -161,6 +161,8 @@ def check_files(prefix, portable=False, windows=False, appimage=False):
         actual_version = subprocess.check_output(
             [prefix.parent / "AppRun" if appimage else executable, "--version"],
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         ).strip()
         assert actual_version == f"小猪修修 {VERSION}", actual_version
@@ -331,7 +333,12 @@ def check_appimage(temporary):
     assert notices, "Missing bundled library license notices"
     for command in ([appdir / "AppRun"], [package, "--appimage-extract-and-run"]):
         actual_version = subprocess.check_output(
-            [*command, "--version"], cwd=destination, text=True, timeout=60
+            [*command, "--version"],
+            cwd=destination,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
         ).strip()
         assert actual_version == f"小猪修修 {VERSION}", actual_version
     print(
