@@ -28,8 +28,8 @@ timeout 120s xvfb-run -a env APPIMAGE_EXTRACT_AND_RUN=1 \
 test -s 'appimage demo.png'
 
 if [[ ${XUAN_CHECK_NATIVE:-0} == 1 ]]; then
-    tar -xzf /packages/xuan-*-linux-x86_64.tar.gz
-    timeout 120s xvfb-run -a ./xuan-*-linux-x86_64/bin/xiaozhu-xiuxiu \
+    tar -xzf /packages/xiaozhu-xiuxiu-*-linux-x86_64.tar.gz
+    timeout 120s xvfb-run -a ./xiaozhu-xiuxiu-*-linux-x86_64/bin/xiaozhu-xiuxiu \
         --demo --screenshot 'native demo.png'
     test -s 'native demo.png'
 fi
