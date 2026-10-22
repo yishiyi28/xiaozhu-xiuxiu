@@ -240,7 +240,8 @@ fn main() -> eframe::Result {
             .with_icon(icon)
             .with_app_id("com.xiaozhu.xiuxiu")
             .with_inner_size([1280.0, 860.0])
-            .with_min_inner_size([850.0, 560.0]),
+            .with_min_inner_size([850.0, 560.0])
+            .with_clamp_size_to_monitor_size(true),
         renderer: eframe::Renderer::Wgpu,
         wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
             wgpu_setup: eframe::egui_wgpu::WgpuSetup::CreateNew(setup),

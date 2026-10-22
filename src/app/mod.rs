@@ -369,6 +369,26 @@ impl Gesture {
     }
 }
 
+const MIN_WINDOW_WIDTH: f32 = 850.0;
+const MIN_WINDOW_HEIGHT: f32 = 560.0;
+const PREFERRED_WINDOW_WIDTH: f32 = 1280.0;
+const PREFERRED_WINDOW_HEIGHT: f32 = 860.0;
+
+fn restored_window_is_undersized(size: Vec2) -> bool {
+    size.x < MIN_WINDOW_WIDTH || size.y < MIN_WINDOW_HEIGHT
+}
+
+fn recovered_window_size(monitor_size: Option<Vec2>) -> Vec2 {
+    let (max_width, max_height) = monitor_size
+        .map_or((PREFERRED_WINDOW_WIDTH, PREFERRED_WINDOW_HEIGHT), |size| {
+            ((size.x - 80.0).max(64.0), (size.y - 100.0).max(64.0))
+        });
+    Vec2::new(
+        PREFERRED_WINDOW_WIDTH.min(max_width),
+        PREFERRED_WINDOW_HEIGHT.min(max_height),
+    )
+}
+
 pub struct EditorApp {
     config: xuan::config::Config,
     tablet: Option<tablet::TabletInput>,
@@ -446,6 +466,7 @@ pub struct EditorApp {
     screenshot: Option<PathBuf>,
     screenshot_requested: bool,
     frames: usize,
+    window_layout_checked: bool,
     canvas_rect: Option<egui::Rect>,
 }
 
@@ -599,6 +620,7 @@ impl EditorApp {
             screenshot,
             screenshot_requested: false,
             frames: 0,
+            window_layout_checked: false,
             canvas_rect: None,
         };
         if demo {
@@ -1607,7 +1629,24 @@ impl EditorApp {
         xuan::gpu::scope(self.processor.clone(), || self.show_with_processor(ctx));
     }
 
+    fn recover_restored_window_layout(&mut self, ctx: &egui::Context) {
+        if self.window_layout_checked {
+            return;
+        }
+        let viewport = ctx.input(|input| input.viewport().clone());
+        let Some(size) = viewport.inner_rect.map(|rect| rect.size()) else {
+            return;
+        };
+        self.window_layout_checked = true;
+        if restored_window_is_undersized(size) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(recovered_window_size(
+                viewport.monitor_size,
+            )));
+        }
+    }
+
     fn show_with_processor(&mut self, ctx: &egui::Context) {
+        self.recover_restored_window_layout(ctx);
         self.poll_job();
         self.poll_develop(ctx);
         self.frames += 1;

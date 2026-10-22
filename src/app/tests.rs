@@ -3620,6 +3620,60 @@ fn copying_layers_between_projects_keeps_source_and_undoes_in_destination() {
     assert_eq!(app.sessions[0].document.layers.len(), 2);
 }
 
+#[test]
+fn restored_window_is_undersized_below_minimum_layout_size() {
+    assert!(restored_window_is_undersized(Vec2::new(849.0, 560.0)));
+    assert!(restored_window_is_undersized(Vec2::new(850.0, 559.0)));
+    assert!(!restored_window_is_undersized(Vec2::new(850.0, 560.0)));
+    assert!(!restored_window_is_undersized(Vec2::new(1280.0, 860.0)));
+}
+
+#[test]
+fn recovered_window_size_stays_inside_the_monitor() {
+    assert_eq!(
+        recovered_window_size(Some(Vec2::new(1706.7, 1066.7))),
+        Vec2::new(1280.0, 860.0)
+    );
+    assert_eq!(
+        recovered_window_size(Some(Vec2::new(1366.0, 768.0))),
+        Vec2::new(1280.0, 668.0)
+    );
+}
+
+#[test]
+fn undersized_restored_window_is_resized_once() {
+    let context = egui::Context::default();
+    let mut app = EditorApp::with_context(&context, Vec::new(), false, None);
+    let mut input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            Pos2::ZERO,
+            Vec2::new(640.0, 480.0),
+        )),
+        ..Default::default()
+    };
+    input
+        .viewports
+        .get_mut(&egui::ViewportId::ROOT)
+        .unwrap()
+        .inner_rect = Some(egui::Rect::from_min_size(
+        Pos2::ZERO,
+        Vec2::new(640.0, 480.0),
+    ));
+    let output = context.run(input, |ctx| app.show(ctx));
+    assert!(has_command(&output, |command| matches!(
+        command,
+        egui::ViewportCommand::InnerSize(size)
+            if *size == Vec2::new(1280.0, 860.0)
+    )));
+    assert!(app.window_layout_checked);
+
+    let output = frame(&context, &mut app);
+    assert!(!has_command(&output, |command| matches!(
+        command,
+        egui::ViewportCommand::InnerSize(_)
+    )));
+}
+
 fn has_command(
     output: &egui::FullOutput,
     predicate: impl Fn(&egui::ViewportCommand) -> bool,
