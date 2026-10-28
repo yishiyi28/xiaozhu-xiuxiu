@@ -253,30 +253,32 @@ fn preview_texture(context: &egui::Context, image: &RgbaImage) -> TextureHandle 
 
 fn refresh_workspace_preview(context: &egui::Context, workspace: &mut PortraitWorkspace) {
     if workspace.state != PortraitState::Ready
-        || workspace.faces.is_empty()
         || workspace.last_preview_revision == workspace.preview_revision
     {
         return;
     }
-    let Some(face) = workspace.faces.get(workspace.selected).cloned() else {
-        return;
-    };
-    let Some(settings) = workspace.selected_settings().cloned() else {
-        return;
-    };
     let (source, scale) = downscaled_source(&workspace.source);
-    let face = scaled_face(&face, scale);
-    let result = (|| -> Result<RgbaImage> {
-        let masks = build_portrait_masks(&source, &face, [source.width(), source.height()])?;
-        let mut output = source.clone();
-        apply_portrait_to_rgba8(&source, &mut output, &masks, &settings)?;
-        let output = apply_face_shape(&output, &face, &settings)?;
-        if let Some(liquify) = &workspace.liquify {
-            apply_strokes_normalized(&output, &liquify.strokes)
-        } else {
-            Ok(output)
-        }
-    })();
+    let result = if let Some(face) = workspace.faces.get(workspace.selected).cloned() {
+        let Some(settings) = workspace.selected_settings().cloned() else {
+            return;
+        };
+        let face = scaled_face(&face, scale);
+        (|| -> Result<RgbaImage> {
+            let masks = build_portrait_masks(&source, &face, [source.width(), source.height()])?;
+            let mut output = source.clone();
+            apply_portrait_to_rgba8(&source, &mut output, &masks, &settings)?;
+            let output = apply_face_shape(&output, &face, &settings)?;
+            if let Some(liquify) = &workspace.liquify {
+                apply_strokes_normalized(&output, &liquify.strokes)
+            } else {
+                Ok(output)
+            }
+        })()
+    } else if let Some(liquify) = &workspace.liquify {
+        apply_strokes_normalized(&source, &liquify.strokes)
+    } else {
+        Ok(source)
+    };
     match result {
         Ok(image) => {
             workspace.preview = Some(preview_texture(context, &image));
@@ -360,25 +362,27 @@ impl EditorApp {
     }
 
     fn apply_portrait_workspace(&mut self, workspace: &PortraitWorkspace) -> Result<()> {
-        let settings = workspace
-            .selected_settings()
-            .context("请选择一张脸")?
-            .clone();
-        let preset = PresetV1 {
-            schema_version: 1,
-            name: "人像精修".into(),
-            color: None,
-            portrait: Some(settings),
-        };
         let session = self.session_mut().context("请先打开一张图片")?;
         session.history.begin("人像精修", &session.document);
         let mut document = session.document.clone();
         let result = (|| -> Result<()> {
-            apply_preset_to_document(
-                &mut document,
-                &preset,
-                FacePolicy::Selected(workspace.selected),
-            )?;
+            if !workspace.faces.is_empty() {
+                let settings = workspace
+                    .selected_settings()
+                    .context("请选择一张脸")?
+                    .clone();
+                let preset = PresetV1 {
+                    schema_version: 1,
+                    name: "人像精修".into(),
+                    color: None,
+                    portrait: Some(settings),
+                };
+                apply_preset_to_document(
+                    &mut document,
+                    &preset,
+                    FacePolicy::Selected(workspace.selected),
+                )?;
+            }
             if let Some(liquify) = &workspace.liquify
                 && !liquify.strokes.is_empty()
             {
@@ -753,9 +757,137 @@ impl EditorApp {
                             }
                         });
                     } else {
-                        if widgets::button(ui, "关闭").clicked() {
-                            cancel = true;
+                        ui.label("未检测到人脸，仍可使用手动液化。");
+                        let mut liquify_changed = false;
+                        if let Some(liquify) = &mut workspace.liquify {
+                            ui.collapsing("手动液化", |ui| {
+                                ui.horizontal(|ui| {
+                                    for (mode, label) in [
+                                        (LiquifyMode::Push, "推移"),
+                                        (LiquifyMode::Pinch, "收缩"),
+                                        (LiquifyMode::Bloat, "膨胀"),
+                                    ] {
+                                        if ui
+                                            .selectable_label(liquify.brush.mode == mode, label)
+                                            .clicked()
+                                        {
+                                            liquify.brush.mode = mode;
+                                        }
+                                    }
+                                });
+                                liquify_changed |= ui
+                                    .add(
+                                        widgets::Slider::new(
+                                            &mut liquify.brush.diameter,
+                                            8.0..=800.0,
+                                        )
+                                        .text("大小")
+                                        .suffix(" px"),
+                                    )
+                                    .changed();
+                                liquify_changed |= ui
+                                    .add(
+                                        widgets::Slider::new(
+                                            &mut liquify.brush.strength,
+                                            1.0..=100.0,
+                                        )
+                                        .text("强度")
+                                        .suffix("%"),
+                                    )
+                                    .changed();
+                                liquify_changed |= ui
+                                    .add(
+                                        widgets::Slider::new(
+                                            &mut liquify.brush.hardness,
+                                            0.0..=100.0,
+                                        )
+                                        .text("硬度")
+                                        .suffix("%"),
+                                    )
+                                    .changed();
+                            });
                         }
+                        if liquify_changed {
+                            workspace.invalidate_preview();
+                        }
+                        ui.separator();
+                        let texture = if workspace.compare_original {
+                            workspace.original_preview.as_ref()
+                        } else {
+                            workspace.preview.as_ref()
+                        };
+                        if let Some(texture) = texture {
+                            let size = texture.size_vec2();
+                            let width = 380.0_f32.min(size.x);
+                            let scale = width / size.x.max(1.0);
+                            let display = vec2(width, size.y * scale);
+                            let (rect, response) = ui.allocate_exact_size(display, Sense::drag());
+                            ui.painter().image(
+                                texture.id(),
+                                rect,
+                                egui::Rect::from_min_max(
+                                    egui::pos2(0.0, 0.0),
+                                    egui::pos2(1.0, 1.0),
+                                ),
+                                egui::Color32::WHITE,
+                            );
+                            let mut stroke_added = false;
+                            if let Some(liquify) = &mut workspace.liquify {
+                                let pointer = context.input(|input| input.pointer.interact_pos());
+                                if let Some(pointer) = pointer.filter(|point| rect.contains(*point))
+                                {
+                                    let normalized = [
+                                        (pointer.x - rect.left()) / rect.width(),
+                                        (pointer.y - rect.top()) / rect.height(),
+                                    ];
+                                    if response.drag_started() {
+                                        liquify.dragging_from = Some(normalized);
+                                    } else if response.dragged()
+                                        && let Some(from) = liquify.dragging_from
+                                        && (from[0] - normalized[0]).abs()
+                                            + (from[1] - normalized[1]).abs()
+                                            > 0.0005
+                                    {
+                                        liquify.strokes.push(NormalizedLiquifyStroke {
+                                            from,
+                                            to: normalized,
+                                            mode: liquify.brush.mode,
+                                            diameter: liquify.brush.diameter,
+                                            strength: liquify.brush.strength,
+                                            hardness: liquify.brush.hardness,
+                                        });
+                                        liquify.dragging_from = Some(normalized);
+                                        stroke_added = true;
+                                    }
+                                    if response.drag_stopped() {
+                                        liquify.dragging_from = None;
+                                    }
+                                }
+                            }
+                            if stroke_added {
+                                workspace.invalidate_preview();
+                            }
+                        }
+                        widgets::checkbox(ui, &mut workspace.compare_original, "查看原图");
+                        ui.separator();
+                        ui.horizontal(|ui| {
+                            if widgets::primary_button(ui, "应用").clicked() {
+                                apply = true;
+                            }
+                            if widgets::button(ui, "取消").clicked() {
+                                cancel = true;
+                            }
+                            let mut reset_liquify = false;
+                            if let Some(liquify) = &mut workspace.liquify
+                                && widgets::button(ui, "重置液化").clicked()
+                            {
+                                liquify.strokes.clear();
+                                reset_liquify = true;
+                            }
+                            if reset_liquify {
+                                workspace.invalidate_preview();
+                            }
+                        });
                     }
                 }
             });
@@ -790,4 +922,39 @@ fn portrait_slider(
             .suffix(suffix),
     )
     .changed()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_face_workspace_can_apply_manual_liquify() {
+        let context = egui::Context::default();
+        let mut app = EditorApp::with_context(&context, Vec::new(), false, None);
+        app.dimensions = [64, 64];
+        app.new_document();
+        let source =
+            RgbaImage::from_fn(64, 64, |x, y| Rgba([(x * 4) as u8, (y * 4) as u8, 96, 255]));
+        let session = app.session_mut().unwrap();
+        session.document.active_mut().unwrap().pixels =
+            Some(Arc::new(PixelStorage::from_rgba8(source.clone())));
+        let mut workspace =
+            PortraitWorkspace::from_analysis_with_source(Ok(Vec::new()), source).unwrap();
+        workspace
+            .liquify
+            .as_mut()
+            .unwrap()
+            .strokes
+            .push(NormalizedLiquifyStroke {
+                from: [0.4, 0.4],
+                to: [0.6, 0.6],
+                mode: LiquifyMode::Push,
+                diameter: 120.0,
+                strength: 80.0,
+                hardness: 70.0,
+            });
+        app.apply_portrait_workspace(&workspace).unwrap();
+        assert_eq!(app.session().unwrap().history.names().count(), 1);
+    }
 }
