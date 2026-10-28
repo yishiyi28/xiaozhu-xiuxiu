@@ -1,6 +1,6 @@
 [package]
 name = "xiaozhu-xiuxiu"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.91"
 description = "小猪修修（原 XUAN）— 一个基于 Rust、wgpu 和 egui 的原生图层修图与合成软件"
