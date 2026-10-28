@@ -1,3 +1,4 @@
+use super::portrait::PortraitState;
 use super::*;
 
 #[path = "tests/canvas_preview.rs"]
@@ -1043,6 +1044,22 @@ fn painting_refreshes_only_the_changed_layer_thumbnail() {
             .0,
         [0, 0, 0, 255]
     );
+}
+
+#[test]
+fn portrait_workspace_reports_no_face() {
+    let workspace = PortraitWorkspace::from_analysis(Ok(Vec::new())).unwrap();
+    assert!(workspace.error.as_deref().unwrap().contains("未检测到人脸"));
+    assert_eq!(workspace.state, PortraitState::Ready);
+    assert!(workspace.faces.is_empty());
+}
+
+#[test]
+fn portrait_workspace_cancels_analysis() {
+    let mut workspace = PortraitWorkspace::analyzing();
+    workspace.cancel();
+    assert_eq!(workspace.state, PortraitState::Idle);
+    assert!(workspace.faces.is_empty());
 }
 
 fn app() -> (egui::Context, EditorApp) {

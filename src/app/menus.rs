@@ -216,6 +216,7 @@ impl EditorApp {
                         });
                         menu_bar_button(ui, tr("Edit"), |ui| {
                             item(ui, tr("Settings…"), "Ctrl+,", "settings", &mut action);
+                            item(ui, tr("Portrait Retouch…"), "P", "portrait", &mut action);
                             ui.separator();
                             let (undo, redo) = if let Some(d) = &self.develop {
                                 (

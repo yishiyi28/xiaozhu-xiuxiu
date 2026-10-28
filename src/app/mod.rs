@@ -15,6 +15,8 @@ mod layers;
 mod levels_controls;
 mod menus;
 mod panels;
+mod portrait;
+pub(crate) use portrait::{PortraitAnalysisJob, PortraitWorkspace};
 mod settings;
 mod shortcuts;
 mod stroke_smoothing;
@@ -395,6 +397,8 @@ pub struct EditorApp {
     context: egui::Context,
     window_title: String,
     job: Option<jobs::Job>,
+    portrait: Option<PortraitWorkspace>,
+    portrait_job: Option<PortraitAnalysisJob>,
     develop: Option<develop::Develop>,
     inactive_develop: Vec<develop::Develop>,
     raw_queue: std::collections::VecDeque<(PathBuf, develop::DevelopTarget)>,
@@ -548,6 +552,8 @@ impl EditorApp {
             context: ctx.clone(),
             window_title: String::new(),
             job: None,
+            portrait: None,
+            portrait_job: None,
             develop: None,
             inactive_develop: Vec::new(),
             raw_queue: Default::default(),
@@ -1630,6 +1636,10 @@ impl EditorApp {
                 }
             }
             "settings" => self.dialog = Some(Dialog::Settings),
+            "portrait" => {
+                let context = self.context.clone();
+                self.open_portrait_workspace(&context);
+            }
             "shortcuts" => self.dialog = Some(Dialog::Shortcuts),
             "about" => self.dialog = Some(Dialog::About),
             _ => {}
@@ -1694,6 +1704,7 @@ impl EditorApp {
     fn show_with_processor(&mut self, ctx: &egui::Context) {
         self.recover_restored_window_layout(ctx);
         self.poll_job();
+        self.poll_portrait_job(ctx);
         self.poll_develop(ctx);
         self.frames += 1;
         self.autosave_tick(ctx);
@@ -1749,6 +1760,7 @@ impl EditorApp {
             self.layers_panel(ctx);
             self.canvas(ctx);
         }
+        self.portrait_workspace(ctx);
         self.dialogs(ctx);
         if self.gesture.is_none()
             && self.effect.is_none()
