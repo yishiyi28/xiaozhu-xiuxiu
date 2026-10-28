@@ -5,3 +5,4 @@ pub mod retouch;
 #[cfg(test)]
 mod test_fixtures;
 pub mod types;
+pub mod warp;
