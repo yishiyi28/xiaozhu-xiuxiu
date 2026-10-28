@@ -11,6 +11,7 @@ pub mod icc;
 pub mod io;
 pub mod operations;
 pub mod paint;
+pub mod portrait;
 pub mod raw;
 pub mod recovery;
 pub mod render;

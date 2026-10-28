@@ -4,6 +4,7 @@
 
 - **Rawler 0.7.2** provides Nikon and Canon RAW decoding, camera calibration data, and PPG demosaicing. Copyright Daniel Vogelbacher, Pedro Côrte-Real, and the Rawler contributors. Licensed under the GNU LGPL 2.1; see [the license](licenses/rawler-LGPL-2.1.txt) and [upstream source](https://crates.io/crates/rawler/0.7.2).
 - **heic-rs 0.1.1** provides HEIC/HEIF decoding in Rust. The decoder and synthetic regression fixtures are used under the [MIT license](licenses/heic-rs-MIT.txt); see [upstream source](https://crates.io/crates/heic-rs/0.1.1) and [fixture provenance](src/io/fixtures/README.md).
+- **MediaPipe BlazeFace and Face Mesh ONNX models**: local 478-point face landmark analysis. Copyright Google LLC. Licensed under [Apache License 2.0](licenses/mediapipe-apache-2.0.txt); see [model provenance](licenses/mediapipe-onnx-models.md).
 - **Droid Sans Fallback Full**: Chinese UI and filename glyphs, Copyright 2005–2008 The Android Open Source Project, [Apache License 2.0](assets/fonts/DroidSansFallback-LICENSE.txt). Bundled unmodified from the Android Droid font family.
 - **Inter Variable**: [SIL Open Font License](assets/fonts/Inter-LICENSE.txt).
 - **Tabler Icons**: toolbar and layer-control SVGs use [Tabler Icons](https://tabler.io/icons), licensed under the [MIT license](licenses/tabler-icons-MIT.txt).
