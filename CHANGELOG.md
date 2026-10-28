@@ -1,5 +1,13 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.3
+
+- Add persistent preset favorites and a recent-preset list, with quick access sections in the preset manager.
+- Add color-aware preset swatches so built-in and user presets are visually distinguishable before application.
+- Add user-preset rename and delete actions with conflict protection.
+- Add import conflict policies for preset files: skip, overwrite, or automatically assign a unique name.
+- Keep preset preferences and management state local to the user configuration directory.
+
 ## 0.6.2
 
 - Add non-destructive Portrait Retouch adjustment layers that persist face landmarks, per-face settings, and liquify strokes while leaving source pixels untouched.

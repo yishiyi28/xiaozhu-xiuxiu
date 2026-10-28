@@ -170,7 +170,7 @@ Choose **Edit → Portrait Retouch…** (or press `P`) with a pixel layer select
 
 The preview supports a manual liquify brush: choose Push, Pinch or Bloat, set size, strength and hardness, then drag directly on the preview. Hold the original-view checkbox to compare the untouched source. Portrait layers persist face landmarks, settings and liquify strokes in `.xuan` projects. Double-click the layer, or use **Edit portrait…** in its context menu, to reopen the recipe. Hide, delete or mask the layer to control its contribution.
 
-Presets contain color grade and portrait settings. Apply a built-in preset from **File → Presets**, or use **Manage Presets…** to import/export `.xzp` files. User presets are stored under `%APPDATA%\xiaozhu-xiuxiu\presets\` on Windows or the matching XDG configuration directory on Linux. Applying a preset is one history transaction; invalid files are rejected without changing the document.
+Presets contain color grade and portrait settings. Apply a built-in preset from **File → Presets**, or use **Manage Presets…** to import/export `.xzp` files. User presets are stored under `%APPDATA%\xiaozhu-xiuxiu\presets\` on Windows or the matching XDG configuration directory on Linux. The manager remembers favorites and recent presets, shows a color-aware swatch, and lets user presets be renamed or deleted. Imports can skip, overwrite, or automatically rename conflicting preset files. Applying a preset is one history transaction; invalid files are rejected without changing the document.
 
 Portrait analysis is local-only. Photos, landmarks and presets are never uploaded. RAW batch processing and automatic body landmarks are not part of 0.6.2; use manual liquify for body adjustments.
 

@@ -152,6 +152,41 @@ impl PresetV1 {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PresetImportPolicy {
+    Overwrite,
+    #[default]
+    Rename,
+    Skip,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PresetPreferences {
+    pub favorites: Vec<String>,
+    pub recent: Vec<String>,
+}
+
+impl PresetPreferences {
+    pub fn is_favorite(&self, name: &str) -> bool {
+        self.favorites.iter().any(|favorite| favorite == name)
+    }
+
+    pub fn toggle_favorite(&mut self, name: &str) {
+        if let Some(index) = self.favorites.iter().position(|favorite| favorite == name) {
+            self.favorites.remove(index);
+        } else {
+            self.favorites.push(name.to_owned());
+        }
+    }
+
+    pub fn touch_recent(&mut self, name: &str) {
+        self.recent.retain(|entry| entry != name);
+        self.recent.insert(0, name.to_owned());
+        self.recent.truncate(8);
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct PresetStore;
 
@@ -162,6 +197,47 @@ impl PresetStore {
             .parent()
             .context("Configuration path has no parent")?;
         Ok(parent.join("presets"))
+    }
+
+    pub fn import_with_policy(path: &Path, policy: PresetImportPolicy) -> Result<Option<PresetV1>> {
+        import_with_policy_into(path, &Self::user_dir()?, policy)
+    }
+
+    pub fn rename(preset: &PresetV1, new_name: &str) -> Result<PresetV1> {
+        rename_in_dir(&Self::user_dir()?, preset, new_name)
+    }
+
+    pub fn delete(preset: &PresetV1) -> Result<()> {
+        delete_in_dir(&Self::user_dir()?, preset)
+    }
+
+    pub fn preferences_path() -> Result<PathBuf> {
+        Ok(Self::user_dir()?.join("preferences.json"))
+    }
+
+    pub fn preferences() -> Result<PresetPreferences> {
+        let path = Self::preferences_path()?;
+        if !path.exists() {
+            return Ok(PresetPreferences::default());
+        }
+        let text = fs::read_to_string(&path)
+            .with_context(|| format!("Cannot read preset preferences {}", path.display()))?;
+        serde_json::from_str(&text)
+            .with_context(|| format!("Cannot parse preset preferences {}", path.display()))
+    }
+
+    pub fn save_preferences(preferences: &PresetPreferences) -> Result<()> {
+        let path = Self::preferences_path()?;
+        let parent = path
+            .parent()
+            .context("Preset preferences path has no parent")?;
+        fs::create_dir_all(parent)?;
+        let mut file = NamedTempFile::new_in(parent)?;
+        file.write_all(serde_json::to_string_pretty(preferences)?.as_bytes())?;
+        file.as_file().sync_all()?;
+        file.persist(&path)
+            .with_context(|| format!("Cannot save preset preferences {}", path.display()))?;
+        Ok(())
     }
 
     pub fn load(path: &Path) -> Result<PresetV1> {
@@ -184,24 +260,8 @@ impl PresetStore {
     }
 
     pub fn import(path: &Path) -> Result<PresetV1> {
-        let preset = Self::load(path)?;
-        let name = preset
-            .name
-            .chars()
-            .map(|ch| {
-                if ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '_') {
-                    ch
-                } else {
-                    '-'
-                }
-            })
-            .collect::<String>()
-            .trim()
-            .to_owned();
-        let name = if name.is_empty() { "preset" } else { &name };
-        let target = Self::user_dir()?.join(format!("{name}.xzp"));
-        Self::save(&preset, &target)?;
-        Ok(preset)
+        Self::import_with_policy(path, PresetImportPolicy::Overwrite)?
+            .context("Preset import was skipped")
     }
 
     pub fn user_presets() -> Result<Vec<PresetV1>> {
@@ -221,6 +281,91 @@ impl PresetStore {
         presets.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(presets)
     }
+}
+
+fn preset_file_name(name: &str) -> String {
+    let name = name
+        .chars()
+        .map(|ch| {
+            if ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '_') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim()
+        .to_owned();
+    if name.is_empty() {
+        "preset".into()
+    } else {
+        name
+    }
+}
+
+fn unique_preset_name(directory: &Path, base: &str) -> String {
+    for index in 1u32.. {
+        let candidate = format!("{base}-{index}");
+        if !directory.join(format!("{candidate}.xzp")).exists() {
+            return candidate;
+        }
+    }
+    unreachable!("unbounded preset name search")
+}
+
+fn import_with_policy_into(
+    source: &Path,
+    directory: &Path,
+    policy: PresetImportPolicy,
+) -> Result<Option<PresetV1>> {
+    let mut preset = PresetStore::load(source)?;
+    let base = preset_file_name(&preset.name);
+    let mut name = base.clone();
+    let mut target = directory.join(format!("{name}.xzp"));
+    if target.exists() {
+        match policy {
+            PresetImportPolicy::Skip => return Ok(None),
+            PresetImportPolicy::Overwrite => {}
+            PresetImportPolicy::Rename => {
+                name = unique_preset_name(directory, &base);
+                preset.name = name.clone();
+                target = directory.join(format!("{name}.xzp"));
+            }
+        }
+    }
+    PresetStore::save(&preset, &target)?;
+    Ok(Some(preset))
+}
+
+fn rename_in_dir(directory: &Path, preset: &PresetV1, new_name: &str) -> Result<PresetV1> {
+    let name = new_name.trim();
+    if name.is_empty() {
+        bail!("Preset name is empty");
+    }
+    let old = directory.join(format!("{}.xzp", preset_file_name(&preset.name)));
+    if !old.exists() {
+        bail!("Preset file is missing");
+    }
+    let mut renamed = preset.clone();
+    renamed.name = name.to_owned();
+    renamed.validate()?;
+    let target = directory.join(format!("{}.xzp", preset_file_name(&renamed.name)));
+    if old != target && target.exists() {
+        bail!("A preset with that name already exists");
+    }
+    PresetStore::save(&renamed, &target)?;
+    if old != target {
+        fs::remove_file(old)?;
+    }
+    Ok(renamed)
+}
+
+fn delete_in_dir(directory: &Path, preset: &PresetV1) -> Result<()> {
+    let path = directory.join(format!("{}.xzp", preset_file_name(&preset.name)));
+    if path.exists() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
 }
 
 pub fn apply_preset_to_document(
@@ -341,6 +486,56 @@ mod tests {
     use super::*;
     use crate::document::{Adjustment, Document, Layer, PixelStorage};
     use image::{Rgba, RgbaImage};
+
+    #[test]
+    fn preset_import_rename_and_delete_respect_conflicts() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source.xzp");
+        let mut preset = PresetV1::sample();
+        preset.name = "Studio".into();
+        PresetStore::save(&preset, &source).unwrap();
+        let first =
+            import_with_policy_into(&source, directory.path(), PresetImportPolicy::Overwrite)
+                .unwrap()
+                .unwrap();
+        assert_eq!(first.name, "Studio");
+        assert!(directory.path().join("Studio.xzp").exists());
+        let second = import_with_policy_into(&source, directory.path(), PresetImportPolicy::Rename)
+            .unwrap()
+            .unwrap();
+        assert_eq!(second.name, "Studio-1");
+        assert!(directory.path().join("Studio-1.xzp").exists());
+        assert!(
+            import_with_policy_into(&source, directory.path(), PresetImportPolicy::Skip,)
+                .unwrap()
+                .is_none()
+        );
+        let renamed = rename_in_dir(directory.path(), &second, "Final").unwrap();
+        assert_eq!(renamed.name, "Final");
+        assert!(!directory.path().join("Studio-1.xzp").exists());
+        assert!(directory.path().join("Final.xzp").exists());
+        delete_in_dir(directory.path(), &renamed).unwrap();
+        assert!(!directory.path().join("Final.xzp").exists());
+    }
+
+    #[test]
+    fn preset_preferences_track_recent_without_duplicates() {
+        let mut preferences = PresetPreferences::default();
+        preferences.touch_recent("Warm");
+        preferences.touch_recent("Cool");
+        preferences.touch_recent("Warm");
+        assert_eq!(preferences.recent, vec!["Warm", "Cool"]);
+        assert!(!preferences.is_favorite("Warm"));
+    }
+
+    #[test]
+    fn preset_preferences_toggle_favorites() {
+        let mut preferences = PresetPreferences::default();
+        preferences.toggle_favorite("Natural");
+        assert!(preferences.is_favorite("Natural"));
+        preferences.toggle_favorite("Natural");
+        assert!(!preferences.is_favorite("Natural"));
+    }
 
     #[test]
     fn preset_roundtrip_preserves_all_values() {
