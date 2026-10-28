@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "冷调",
+  "color": {
+    "exposure": 0.05,
+    "contrast": 10,
+    "highlights": -12,
+    "shadows": 8,
+    "temperature": -24,
+    "tint": -2,
+    "saturation": -4
+  },
+  "portrait": {
+    "skin_smooth": 18,
+    "skin_texture": 16,
+    "skin_tone": 8
+  }
+}

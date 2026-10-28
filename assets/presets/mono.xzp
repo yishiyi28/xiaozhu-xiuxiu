@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "name": "黑白",
+  "color": {
+    "contrast": 12,
+    "highlights": -12,
+    "shadows": 16,
+    "saturation": -100,
+    "grain": 14,
+    "vignette": 10
+  },
+  "portrait": {
+    "skin_smooth": 18,
+    "skin_texture": 20
+  }
+}

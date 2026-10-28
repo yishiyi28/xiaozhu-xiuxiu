@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "name": "暖阳",
+  "color": {
+    "exposure": 0.15,
+    "contrast": 8,
+    "highlights": -8,
+    "shadows": 10,
+    "temperature": 28,
+    "tint": 4,
+    "vibrance": 12
+  },
+  "portrait": {
+    "skin_smooth": 16,
+    "skin_texture": 18
+  }
+}

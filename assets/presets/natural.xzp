@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "自然通透",
+  "color": {
+    "exposure": 0.1,
+    "contrast": 6,
+    "highlights": -10,
+    "shadows": 14,
+    "temperature": 4,
+    "vibrance": 10,
+    "saturation": -2
+  },
+  "portrait": {
+    "skin_smooth": 22,
+    "skin_texture": 18,
+    "skin_tone": 10,
+    "blemish": 15
+  }
+}

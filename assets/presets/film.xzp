@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "胶片",
+  "color": {
+    "contrast": 14,
+    "highlights": -20,
+    "shadows": 20,
+    "whites": -6,
+    "blacks": 8,
+    "temperature": 8,
+    "saturation": -10,
+    "grain": 18,
+    "vignette": 14
+  },
+  "portrait": {
+    "skin_smooth": 14,
+    "skin_texture": 24
+  }
+}

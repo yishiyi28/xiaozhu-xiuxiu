@@ -180,6 +180,22 @@ impl EditorApp {
                                     &mut action,
                                 );
                             });
+                            ui.menu_button(tr("Presets"), |ui| {
+                                for (label, command) in [
+                                    ("Natural", "preset_natural"),
+                                    ("Clear Portrait", "preset_clear-portrait"),
+                                    ("Warm", "preset_warm"),
+                                    ("Cool", "preset_cool"),
+                                    ("Film", "preset_film"),
+                                    ("Soft Film", "preset_soft-film"),
+                                    ("Mono", "preset_mono"),
+                                    ("High Contrast Mono", "preset_high-contrast-mono"),
+                                ] {
+                                    item(ui, label, "", command, &mut action);
+                                }
+                                ui.separator();
+                                item(ui, tr("Import Preset…"), "", "preset_import", &mut action);
+                            });
                             ui.separator();
                             ui.add_enabled_ui(has_doc, |ui| {
                                 item(ui, tr("Save"), "Ctrl+S", "save", &mut action);

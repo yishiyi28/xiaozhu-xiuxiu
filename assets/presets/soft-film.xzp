@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "柔雾胶片",
+  "color": {
+    "exposure": 0.1,
+    "contrast": -4,
+    "highlights": -16,
+    "shadows": 24,
+    "temperature": 6,
+    "saturation": -8,
+    "grain": 10,
+    "vignette": 8
+  },
+  "portrait": {
+    "skin_smooth": 30,
+    "skin_texture": 12,
+    "skin_tone": 12
+  }
+}

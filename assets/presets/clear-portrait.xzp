@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "清透人像",
+  "color": {
+    "exposure": 0.2,
+    "contrast": 4,
+    "highlights": -18,
+    "shadows": 18,
+    "temperature": -2,
+    "vibrance": 14
+  },
+  "portrait": {
+    "skin_smooth": 28,
+    "skin_texture": 20,
+    "skin_tone": 14,
+    "blemish": 20,
+    "eye_brightness": 8,
+    "eye_clarity": 10,
+    "lip_tint": 8
+  }
+}

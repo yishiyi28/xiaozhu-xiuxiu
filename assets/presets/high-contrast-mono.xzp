@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "高反差黑白",
+  "color": {
+    "contrast": 34,
+    "highlights": -20,
+    "shadows": 8,
+    "whites": 12,
+    "blacks": -12,
+    "saturation": -100,
+    "grain": 22,
+    "vignette": 18
+  },
+  "portrait": {
+    "skin_smooth": 12,
+    "skin_texture": 28
+  }
+}

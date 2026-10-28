@@ -1186,6 +1186,34 @@ impl EditorApp {
         self.current = self.sessions.len() - 1;
     }
 
+    fn apply_preset(&mut self, preset: xuan::portrait::preset::PresetV1) {
+        let Some(session) = self.session_mut() else {
+            self.error = Some(tr("Open an image before applying a preset.").into());
+            return;
+        };
+        session
+            .history
+            .begin(preset.name.clone(), &session.document);
+        let mut document = session.document.clone();
+        match xuan::portrait::preset::apply_preset_to_document(
+            &mut document,
+            &preset,
+            xuan::portrait::preset::FacePolicy::AllFaces,
+        ) {
+            Ok(()) => {
+                session.document = document;
+                session.document.promote_image_masks();
+                session.history.commit();
+                session.invalidate();
+                self.status = format!("{}: {}", tr("Preset"), preset.name);
+            }
+            Err(error) => {
+                session.history.cancel(&mut session.document);
+                self.error = Some(format!("{error:#}"));
+            }
+        }
+    }
+
     fn command(&mut self, command: &str) {
         if self.job.is_some() {
             return;
@@ -1582,6 +1610,24 @@ impl EditorApp {
                 self.edit(tr("Invert"), |doc| {
                     xuan::effects::apply_adjustment(doc, &Adjustment::Invert, mask)
                 });
+            }
+            "preset_import" => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("小猪修修 preset", &["xzp"])
+                    .pick_file()
+                {
+                    match xuan::portrait::preset::PresetStore::load(&path) {
+                        Ok(preset) => self.apply_preset(preset),
+                        Err(error) => self.error = Some(format!("{error:#}")),
+                    }
+                }
+            }
+            name if name.starts_with("preset_") => {
+                let builtin = name.trim_start_matches("preset_");
+                match xuan::portrait::preset::PresetV1::builtin(builtin) {
+                    Ok(preset) => self.apply_preset(preset),
+                    Err(error) => self.error = Some(format!("{error:#}")),
+                }
             }
             "settings" => self.dialog = Some(Dialog::Settings),
             "shortcuts" => self.dialog = Some(Dialog::Shortcuts),
