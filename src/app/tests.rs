@@ -1062,6 +1062,41 @@ fn portrait_workspace_cancels_analysis() {
     assert!(workspace.faces.is_empty());
 }
 
+#[test]
+fn preset_application_is_one_undo_step() {
+    let (_, mut app) = app();
+    app.dimensions = [32, 24];
+    app.new_document();
+    let before = xuan::render::render(&app.session().unwrap().document);
+    let preset = xuan::portrait::preset::PresetV1 {
+        schema_version: 1,
+        name: "Test".into(),
+        color: Some(xuan::document::ColorGrade {
+            temperature: 18.0,
+            contrast: 5.0,
+            ..Default::default()
+        }),
+        portrait: None,
+    };
+    let session = app.session_mut().unwrap();
+    session.history.begin("Preset", &session.document);
+    let mut document = session.document.clone();
+    xuan::portrait::preset::apply_preset_to_document(
+        &mut document,
+        &preset,
+        xuan::portrait::preset::FacePolicy::NoPortrait,
+    )
+    .unwrap();
+    session.document = document;
+    session.history.commit();
+    assert_eq!(session.history.names().count(), 1);
+    app.command("undo");
+    assert_eq!(
+        xuan::render::render(&app.session().unwrap().document),
+        before
+    );
+}
+
 fn app() -> (egui::Context, EditorApp) {
     let context = egui::Context::default();
     let app = EditorApp::with_context(&context, Vec::new(), false, None);

@@ -1,5 +1,15 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.0
+
+- Add fully local face detection and 478-point face landmark analysis using embedded Apache-2.0 ONNX models.
+- Add portrait skin smoothing and texture, even tone, blemish reduction, eye enhancement, teeth whitening, lip tint and face/feature reshaping.
+- Add a manual liquify brush for face and body adjustments.
+- Add `.xzp` presets with eight built-ins, import/export, and one-transaction application.
+- Add GUI and CLI batch preset processing with resizing, suffix, overwrite and cancellation controls.
+- Keep portrait analysis offline; no image or biometric data is uploaded.
+- Known limits: automatic body landmarks, RAW batch processing and separate per-face batch recipes are deferred to 0.6.x.
+
 ## 0.5.1
 
 - 修复部分 Windows 环境首次启动时沿用异常过小的持久化窗口尺寸，导致仅显示顶部菜单和缩放栏的问题。

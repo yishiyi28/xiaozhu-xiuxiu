@@ -22,6 +22,7 @@
 | Move / Marquee / Lasso / Wand / Crop | V / M / L / W / C |
 | Brush / Eraser / Heal / Clone / Blur | B / E / J / S / R |
 | Gradient / Shape / Eyedropper / Hand / Zoom | G / U / I / H / Z |
+| Portrait retouch | P |
 | Text / Apply text / Cancel text | T / Ctrl+Enter / Escape |
 | Brush size / Hardness | [ and ] / Shift+[ and Shift+] |
 | Opacity | Number keys 1–9, 0 for 100% |

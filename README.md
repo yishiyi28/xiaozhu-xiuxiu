@@ -11,6 +11,8 @@
 - Compose with layers, groups, masks, blend modes, editable text, and shapes.
 - Preserve 16-bit sources through composition, adjustment layers, filters, masks, painting, retouching, and PNG/TIFF export.
 - Use standalone mask layers to mask everything below them, limited to their group when grouped. Click the empty area of the Layers panel to deselect, then click Add layer mask; or choose Layer Mask → New Mask Layer.
+- Analyze up to eight local faces with 478-point face landmarks, then retouch skin, eyes, teeth, lips and face shape without uploading photos.
+- Use manual liquify for face and body shaping, save looks as `.xzp` presets, and apply them to folders with the batch workflow.
 - Retouch with selections, brushes, clone stamp, healing, filters, and adjustment layers, including non-destructive filter layers for blur, unsharp mask, high pass, posterize, threshold, pixelation, vignette, noise, and lens correction.
 - Draw with Wacom, Parblo, and other system-supported tablets on Linux and Windows, with pressure, tilt, and eraser-tip support.
 - Smooth mouse and pen strokes with adjustable brush stroke smoothing.

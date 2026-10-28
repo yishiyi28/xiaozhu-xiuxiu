@@ -164,6 +164,26 @@ standalone mask. Select a mask child to paint it, and use **Link / Unlink** to
 control whether it follows its image's transforms. Older single image masks are
 shown as children when a project is opened. Save as `.xuan` to preserve the stack.
 
+## Portrait retouch and presets
+
+Choose **Edit → Portrait Retouch…** (or press `P`) with a pixel layer selected. The first portrait session loads the embedded local models and detects up to eight faces. Select a face chip, adjust skin, eye, teeth, lip and face-shape controls, then use **Apply**. The full-resolution result is one undo step.
+
+The preview supports a manual liquify brush: choose Push, Pinch or Bloat, set size, strength and hardness, then drag directly on the preview. Hold the original-view checkbox to compare the untouched source. Face shaping and liquify are raster edits; the original image layer remains recoverable through undo.
+
+Presets contain color grade and portrait settings. Apply a built-in preset from **File → Presets**, or use **Manage Presets…** to import/export `.xzp` files. User presets are stored under `%APPDATA%\xiaozhu-xiuxiu\presets\` on Windows or the matching XDG configuration directory on Linux. Applying a preset is one history transaction; invalid files are rejected without changing the document.
+
+Portrait analysis is local-only. Photos, landmarks and presets are never uploaded. RAW batch processing and automatic body landmarks are not part of 0.6.0; use manual liquify for body adjustments.
+
+### Batch export
+
+Use **File → Batch Export…** or the CLI:
+
+```powershell
+xiaozhu-xiuxiu --batch .\photos --out .\output --preset .\look.xzp --format jpeg --quality 92 --max-edge 2048 --suffix _edit
+```
+
+Add `--recursive` to include subdirectories and `--overwrite` to replace existing outputs. With a preset, the default suffix is `_xiaozhu`; without `--preset`, the original batch behavior is preserved. Batch failures are reported per file and do not stop the remaining images.
+
 ## Files and export
 
 Use **File → Open Compositor Project…** to import an original `.comp` folder package. Save it as `.xuan` to keep editing in 小猪修修. Image export supports PNG, JPEG, TIFF, and WebP; JPEG has a quality preview and PNG/JPEG carry print resolution.

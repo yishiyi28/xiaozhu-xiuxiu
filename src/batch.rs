@@ -268,6 +268,44 @@ mod tests {
         assert!(!dir.path().join("out/one_xiaozhu.png").exists());
     }
 
+    #[test]
+    fn batch_output_matches_single_image_preset_render() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("input.png");
+        let pixels = RgbaImage::from_fn(32, 24, |x, y| {
+            Rgba([(x * 5) as u8, (y * 7) as u8, ((x + y) * 3) as u8, 255])
+        });
+        pixels.save(&source).unwrap();
+        let preset = crate::portrait::preset::PresetV1 {
+            schema_version: 1,
+            name: "Test".into(),
+            color: Some(crate::document::ColorGrade {
+                contrast: 12.0,
+                temperature: 9.0,
+                ..Default::default()
+            }),
+            portrait: None,
+        };
+        let mut single = Document::new(32, 24).unwrap();
+        single.layers = vec![Layer::from_storage(
+            "input",
+            crate::document::PixelStorage::from_rgba8(pixels),
+        )];
+        apply_preset_to_document(&mut single, &preset, FacePolicy::NoPortrait).unwrap();
+        let expected = crate::render::render(&single);
+        let mut options = BatchOptions::test_fixture(dir.path(), true);
+        options.output = dir.path().join("out");
+        options.suffix = "_batch".into();
+        options.preset = Some(preset);
+        std::fs::create_dir_all(&options.output).unwrap();
+        let report = run_batch(options).unwrap();
+        assert_eq!(report.exported, 1);
+        let actual = image::open(dir.path().join("out/input_batch.png"))
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(expected, actual);
+    }
+
     fn write_png(path: &Path) {
         let image = RgbaImage::from_pixel(8, 8, Rgba([20, 40, 60, 255]));
         image.save(path).unwrap();

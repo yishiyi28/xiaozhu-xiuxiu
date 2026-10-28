@@ -63,6 +63,8 @@ def main():
             "licenses/rawler-LGPL-2.1.txt",
             "licenses/heic-rs-MIT.txt",
             "licenses/tabler-icons-MIT.txt",
+            "licenses/mediapipe-apache-2.0.txt",
+            "licenses/mediapipe-onnx-models.md",
             "assets/fonts/Inter-LICENSE.txt",
             "assets/fonts/DroidSansFallback-LICENSE.txt",
         ):

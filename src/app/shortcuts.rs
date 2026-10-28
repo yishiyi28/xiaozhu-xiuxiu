@@ -141,6 +141,9 @@ impl EditorApp {
                 self.command("delete_layer");
             }
         }
+        if !modifiers.ctrl && !modifiers.alt && !modifiers.shift && pressed(Key::P) {
+            self.command("portrait");
+        }
         for (key, tool) in [
             (Key::V, Tool::Move),
             (Key::M, Tool::Marquee),
