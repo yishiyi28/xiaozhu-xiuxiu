@@ -206,6 +206,175 @@ impl Mask {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ColorGrade {
+    pub exposure: f32,
+    pub contrast: f32,
+    pub highlights: f32,
+    pub shadows: f32,
+    pub whites: f32,
+    pub blacks: f32,
+    pub temperature: f32,
+    pub tint: f32,
+    pub vibrance: f32,
+    pub saturation: f32,
+    pub grain: f32,
+    pub vignette: f32,
+}
+
+impl ColorGrade {
+    pub fn validate(&self) -> anyhow::Result<()> {
+        let finite = [
+            self.exposure,
+            self.contrast,
+            self.highlights,
+            self.shadows,
+            self.whites,
+            self.blacks,
+            self.temperature,
+            self.tint,
+            self.vibrance,
+            self.saturation,
+            self.grain,
+            self.vignette,
+        ]
+        .iter()
+        .all(|value| value.is_finite());
+        anyhow::ensure!(finite, "Color grade contains non-finite values");
+        anyhow::ensure!(
+            (-5.0..=5.0).contains(&self.exposure)
+                && [
+                    self.contrast,
+                    self.highlights,
+                    self.shadows,
+                    self.whites,
+                    self.blacks,
+                    self.temperature,
+                    self.tint,
+                    self.vibrance,
+                    self.saturation,
+                ]
+                .iter()
+                .all(|value| (-100.0..=100.0).contains(value))
+                && (0.0..=100.0).contains(&self.grain)
+                && (0.0..=100.0).contains(&self.vignette),
+            "Color grade value is out of range"
+        );
+        Ok(())
+    }
+
+    pub fn is_identity(&self) -> bool {
+        [
+            self.exposure,
+            self.contrast,
+            self.highlights,
+            self.shadows,
+            self.whites,
+            self.blacks,
+            self.temperature,
+            self.tint,
+            self.vibrance,
+            self.saturation,
+            self.grain,
+            self.vignette,
+        ]
+        .iter()
+        .all(|value| *value == 0.0)
+    }
+
+    pub fn apply_rgb(&self, rgb: [u8; 3]) -> [u8; 3] {
+        self.apply_f32(
+            [
+                rgb[0] as f32 / 255.0,
+                rgb[1] as f32 / 255.0,
+                rgb[2] as f32 / 255.0,
+            ],
+            [0.5, 0.5],
+        )
+        .map(|value| (value * 255.0).round().clamp(0.0, 255.0) as u8)
+    }
+
+    pub fn apply_rgba8(&self, image: &RgbaImage) -> RgbaImage {
+        RgbaImage::from_fn(image.width(), image.height(), |x, y| {
+            let pixel = image.get_pixel(x, y);
+            let uv = [
+                (x as f32 + 0.5) / image.width() as f32,
+                (y as f32 + 0.5) / image.height() as f32,
+            ];
+            let rgb = self.apply_f32(
+                [
+                    pixel[0] as f32 / 255.0,
+                    pixel[1] as f32 / 255.0,
+                    pixel[2] as f32 / 255.0,
+                ],
+                uv,
+            );
+            image::Rgba([
+                (rgb[0] * 255.0).round().clamp(0.0, 255.0) as u8,
+                (rgb[1] * 255.0).round().clamp(0.0, 255.0) as u8,
+                (rgb[2] * 255.0).round().clamp(0.0, 255.0) as u8,
+                pixel[3],
+            ])
+        })
+    }
+
+    pub fn apply_f32(&self, rgb: [f32; 3], uv: [f32; 2]) -> [f32; 3] {
+        if self.is_identity() {
+            return rgb;
+        }
+        let mut color = rgb;
+        let exposure = 2.0_f32.powf(self.exposure);
+        color = color.map(|value| value * exposure);
+        let luma = color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722;
+        let highlight_weight = ((luma - 0.5) * 2.0).clamp(0.0, 1.0);
+        let shadow_weight = ((0.5 - luma) * 2.0).clamp(0.0, 1.0);
+        let white_weight = (luma * luma).clamp(0.0, 1.0);
+        let black_weight = ((1.0 - luma) * (1.0 - luma)).clamp(0.0, 1.0);
+        let tonal = self.highlights / 100.0 * highlight_weight
+            + self.shadows / 100.0 * shadow_weight
+            + self.whites / 100.0 * white_weight
+            + self.blacks / 100.0 * black_weight;
+        color = color.map(|value| value + tonal * 0.25);
+        let contrast = 1.0 + self.contrast / 100.0;
+        color = color.map(|value| (value - 0.5) * contrast + 0.5);
+        let temperature = self.temperature / 100.0;
+        let tint = self.tint / 100.0;
+        color[0] += temperature * 0.28 + tint * 0.04;
+        color[1] -= tint * 0.06;
+        color[2] -= temperature * 0.28 - tint * 0.04;
+        let luma = color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722;
+        let saturation = (1.0 + self.saturation / 100.0).max(0.0);
+        color = color.map(|value| luma + (value - luma) * saturation);
+        let high = color[0].max(color[1]).max(color[2]);
+        let low = color[0].min(color[1]).min(color[2]);
+        let vibrance = self.vibrance / 100.0 * (1.0 - (high - low));
+        color = color.map(|value| luma + (value - luma) * (1.0 + vibrance));
+        if self.grain > 0.0 {
+            let hash = noise_hash(uv);
+            let grain = (hash - 0.5) * self.grain / 100.0 * 0.2;
+            color = color.map(|value| value + grain);
+        }
+        if self.vignette > 0.0 {
+            let dx = uv[0] - 0.5;
+            let dy = uv[1] - 0.5;
+            let radius = (dx * dx + dy * dy).sqrt() * std::f32::consts::SQRT_2;
+            let amount = self.vignette / 100.0 * (radius * radius).clamp(0.0, 1.0) * 0.6;
+            color = color.map(|value| value * (1.0 - amount));
+        }
+        color.map(|value| value.clamp(0.0, 1.0))
+    }
+}
+
+fn noise_hash(uv: [f32; 2]) -> f32 {
+    let x = (uv[0] * 65_536.0) as u32;
+    let y = (uv[1] * 65_536.0) as u32;
+    let mut value = x.wrapping_mul(374_761_393) ^ y.wrapping_mul(668_265_263) ^ 0x9e37_79b9;
+    value ^= value >> 13;
+    value = value.wrapping_mul(1_274_126_177);
+    (value ^ (value >> 16)) as f32 / u32::MAX as f32
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Adjustment {
     HueRanges {
@@ -253,6 +422,9 @@ pub enum Adjustment {
         monochrome: bool,
         seed: u32,
     },
+    ColorGrade {
+        grade: ColorGrade,
+    },
     Invert,
 }
 
@@ -268,6 +440,7 @@ impl Adjustment {
             Self::Exposure { .. } => "Exposure",
             Self::GradientMap { .. } => "Gradient Map",
             Self::Grain { .. } | Self::FilmGrain { .. } => "Grain",
+            Self::ColorGrade { .. } => "Color Grade",
             Self::Invert => "Invert",
         }
     }

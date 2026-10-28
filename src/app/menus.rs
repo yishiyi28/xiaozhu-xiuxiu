@@ -109,6 +109,9 @@ pub(super) fn adjustment_menu(ui: &mut egui::Ui) -> Option<Adjustment> {
             offset: 0.0,
             gamma: 1.0,
         },
+        Adjustment::ColorGrade {
+            grade: Default::default(),
+        },
         Adjustment::GradientMap {
             shadows: [0, 0, 0, 255],
             highlights: [255; 4],

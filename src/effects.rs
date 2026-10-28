@@ -222,6 +222,7 @@ pub fn adjust(pixel: [f32; 4], adjustment: &Adjustment, point: Point) -> [f32; 4
                 ) * amount
                     / 100.0
         }),
+        Adjustment::ColorGrade { grade } => grade.apply_f32(rgb, [point.x, point.y]),
         Adjustment::Invert => rgb.map(|v| 1.0 - v),
     };
     [
@@ -1427,6 +1428,7 @@ pub fn validate_adjustment(adjustment: &Adjustment) -> Result<()> {
                 && (0.0..=100.0).contains(roughness)
         }
         Adjustment::Grain { amount, .. } => amount.is_finite() && (0.0..=100.0).contains(amount),
+        Adjustment::ColorGrade { grade } => grade.validate().is_ok(),
         Adjustment::GradientMap { .. } | Adjustment::Invert => true,
     };
     ensure!(valid, "Invalid adjustment settings");
@@ -1436,6 +1438,27 @@ pub fn validate_adjustment(adjustment: &Adjustment) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn color_grade_identity_preserves_samples() {
+        let grade = crate::document::ColorGrade::default();
+        for rgb in [[0, 0, 0], [128, 64, 32], [255, 255, 255]] {
+            assert_eq!(grade.apply_rgb(rgb), rgb);
+        }
+    }
+
+    #[test]
+    fn color_grade_warms_and_desaturates() {
+        let grade = crate::document::ColorGrade {
+            temperature: 20.0,
+            saturation: -20.0,
+            ..Default::default()
+        };
+        let out = grade.apply_rgb([160, 120, 100]);
+        assert!(out[0] > 160);
+        assert!(out[2] < 100);
+        assert!(out[0] - out[2] > 60);
+    }
 
     // The original implementation is an independent reference for sampling and alpha.
     fn reference_motion_blur(image: &RgbaImage, distance: f32, angle: f32) -> RgbaImage {

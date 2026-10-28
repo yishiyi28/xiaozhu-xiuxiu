@@ -534,6 +534,39 @@ impl EditorApp {
                                 .add(widgets::Slider::new(gamma, 0.1..=5.0).text(tr("Gamma")))
                                 .changed();
                         }
+                        Adjustment::ColorGrade { grade } => {
+                            for (label, value, range, suffix) in [
+                                (tr("Exposure"), &mut grade.exposure, -5.0..=5.0, " EV"),
+                                (tr("Contrast"), &mut grade.contrast, -100.0..=100.0, "%"),
+                                (tr("Highlights"), &mut grade.highlights, -100.0..=100.0, "%"),
+                                (tr("Shadows"), &mut grade.shadows, -100.0..=100.0, "%"),
+                                (tr("Whites"), &mut grade.whites, -100.0..=100.0, "%"),
+                                (tr("Blacks"), &mut grade.blacks, -100.0..=100.0, "%"),
+                                (
+                                    tr("Temperature"),
+                                    &mut grade.temperature,
+                                    -100.0..=100.0,
+                                    "%",
+                                ),
+                                (tr("Tint"), &mut grade.tint, -100.0..=100.0, "%"),
+                                (tr("Vibrance"), &mut grade.vibrance, -100.0..=100.0, "%"),
+                                (tr("Saturation"), &mut grade.saturation, -100.0..=100.0, "%"),
+                                (tr("Grain"), &mut grade.grain, 0.0..=100.0, "%"),
+                                (tr("Vignette"), &mut grade.vignette, 0.0..=100.0, "%"),
+                            ] {
+                                changed |= ui
+                                    .add(
+                                        widgets::Slider::new(value, range)
+                                            .text(label)
+                                            .suffix(suffix),
+                                    )
+                                    .changed();
+                            }
+                            if widgets::button(ui, tr("Reset")).clicked() {
+                                *grade = Default::default();
+                                changed = true;
+                            }
+                        }
                         Adjustment::GradientMap {
                             shadows,
                             highlights,

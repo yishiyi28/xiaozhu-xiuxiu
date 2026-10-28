@@ -1175,3 +1175,32 @@ fn processing_resident_raw_previews_match_output_and_keep_old_frames_immutable()
             .is_err()
     );
 }
+
+#[test]
+#[ignore = "requires native compute adapter"]
+fn color_grade_gpu_matches_cpu_within_one_level() {
+    let processor = processor();
+    let source = fixture(48, 32);
+    let grade = crate::document::ColorGrade {
+        exposure: 0.35,
+        contrast: 18.0,
+        highlights: -20.0,
+        shadows: 25.0,
+        temperature: 12.0,
+        saturation: -8.0,
+        ..Default::default()
+    };
+    let cpu = grade.apply_rgba8(&source);
+    let gpu = processor
+        .adjustment(
+            &source,
+            &Adjustment::ColorGrade {
+                grade: grade.clone(),
+            },
+            crate::document::Transform::new(48, 32),
+            None,
+            false,
+        )
+        .unwrap();
+    compare(&cpu, &gpu, 1);
+}

@@ -226,6 +226,35 @@ fn adjust(rgb: vec3<f32>, point: vec2<f32>) -> vec3<f32> {
             let delta = film_grain(point, a) * a.x / 100.0 * 0.35 * (0.4 + 2.4 * level * (1.0 - level));
             return rgb + delta;
         }
+        case 12u: {
+            let grade = params.points[0];
+            var color = rgb * exp2(a.x);
+            var level = dot(color, vec3(0.2126, 0.7152, 0.0722));
+            let tonal = a.z / 100.0 * clamp((level - 0.5) * 2.0, 0.0, 1.0)
+                + a.w / 100.0 * clamp((0.5 - level) * 2.0, 0.0, 1.0)
+                + b.x / 100.0 * level * level
+                + b.y / 100.0 * (1.0 - level) * (1.0 - level);
+            color += vec3(tonal * 0.25);
+            color = (color - 0.5) * (1.0 + a.y / 100.0) + 0.5;
+            let temperature = b.z / 100.0;
+            let tint = b.w / 100.0;
+            color += vec3(temperature * 0.28 + tint * 0.04, -tint * 0.06, -temperature * 0.28 + tint * 0.04);
+            level = dot(color, vec3(0.2126, 0.7152, 0.0722));
+            color = vec3(level) + (color - vec3(level)) * max(0.0, 1.0 + grade.y / 100.0);
+            let high = max(max(color.r, color.g), color.b);
+            let low = min(min(color.r, color.g), color.b);
+            let vibrance = grade.x / 100.0 * (1.0 - (high - low));
+            color = vec3(level) + (color - vec3(level)) * (1.0 + vibrance);
+            if grade.z > 0.0 {
+                let pixel = vec2<u32>(point * 65536.0);
+                color += vec3((noise(pixel, 0x9e3779b9u) - 0.5) * grade.z / 100.0 * 0.2);
+            }
+            if grade.w > 0.0 {
+                let radius = length(point - vec2(0.5)) * 1.4142136;
+                color *= 1.0 - grade.w / 100.0 * clamp(radius * radius, 0.0, 1.0) * 0.6;
+            }
+            return clamp(color, vec3(0.0), vec3(1.0));
+        }
         default: { return rgb; }
     }
 }

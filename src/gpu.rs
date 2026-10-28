@@ -836,6 +836,22 @@ fn parameters(document: &Document, layer: &Layer, size: [u32; 2]) -> Parameters 
                     0.0,
                 ];
             }
+            Adjustment::ColorGrade { grade } => {
+                p.flags[1] = 12;
+                p.first = [
+                    grade.exposure,
+                    grade.contrast,
+                    grade.highlights,
+                    grade.shadows,
+                ];
+                p.second = [grade.whites, grade.blacks, grade.temperature, grade.tint];
+                p.points[0] = [
+                    grade.vibrance,
+                    grade.saturation,
+                    grade.grain,
+                    grade.vignette,
+                ];
+            }
             Adjustment::Invert => p.flags[1] = 7,
         }
     }
