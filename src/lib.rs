@@ -1,3 +1,4 @@
+pub mod batch;
 pub mod blend;
 pub mod color;
 pub mod config;

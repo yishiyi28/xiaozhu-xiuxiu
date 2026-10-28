@@ -64,128 +64,76 @@ struct Args {
         value_parser = clap::value_parser!(u8).range(1..=100)
     )]
     quality: u8,
+
+    /// Apply an .xzp preset during --batch
+    #[arg(long, value_name = "PRESET", requires = "batch")]
+    preset: Option<PathBuf>,
+
+    /// Resize the longest edge during --batch (0 keeps original size)
+    #[arg(long, value_name = "PIXELS", requires = "batch", value_parser = parse_max_edge)]
+    max_edge: Option<u32>,
+
+    /// Output filename suffix during --batch
+    #[arg(long, value_name = "SUFFIX", requires = "batch")]
+    suffix: Option<String>,
+
+    /// Replace existing output files during --batch
+    #[arg(long, requires = "batch")]
+    overwrite: bool,
 }
 
-fn is_batch_supported(extension: &str) -> bool {
-    matches!(
-        extension,
-        "xuan"
-            | "psd"
-            | "png"
-            | "jpg"
-            | "jpeg"
-            | "tif"
-            | "tiff"
-            | "webp"
-            | "bmp"
-            | "gif"
-            | "heic"
-            | "heif"
-            | "hif"
-    )
-}
-
-fn collect_batch_files(
-    directory: &std::path::Path,
-    recursive: bool,
-    files: &mut Vec<PathBuf>,
-) -> anyhow::Result<()> {
-    for entry in std::fs::read_dir(directory)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            if recursive {
-                collect_batch_files(&path, recursive, files)?;
-            }
-        } else {
-            files.push(path);
-        }
+fn parse_max_edge(value: &str) -> Result<u32, String> {
+    let value = value
+        .parse::<u32>()
+        .map_err(|_| "max edge must be an integer".to_owned())?;
+    if value == 0 || (64..=30_000).contains(&value) {
+        Ok(value)
+    } else {
+        Err("max edge must be 0 or between 64 and 30000".into())
     }
-    Ok(())
-}
-
-fn batch_document(path: &std::path::Path) -> anyhow::Result<xuan::document::Document> {
-    let extension = path
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    match extension.as_str() {
-        "xuan" => xuan::io::load(path),
-        "psd" => xuan::io::import_psd(path),
-        _ => {
-            let pixels = xuan::io::import_pixels(path)?;
-            let (width, height) = pixels.rgba8().dimensions();
-            let mut document = xuan::document::Document::new(width, height)?;
-            let layer = xuan::document::Layer::from_storage(
-                path.file_stem().unwrap_or_default().to_string_lossy(),
-                pixels,
-            );
-            document.layers = vec![layer];
-            Ok(document)
-        }
-    }
-}
-
-fn batch_export(args: &Args, input: &std::path::Path) -> anyhow::Result<(usize, usize, usize)> {
-    use anyhow::Context;
-
-    if !input.is_dir() {
-        anyhow::bail!("--batch expects a directory");
-    }
-    let output = args.out.clone().unwrap_or_else(|| input.to_path_buf());
-    std::fs::create_dir_all(&output)
-        .with_context(|| format!("Cannot create {}", output.display()))?;
-    let mut files = Vec::new();
-    collect_batch_files(input, args.recursive, &mut files)?;
-    files.sort();
-    let mut exported = 0;
-    let mut failed = 0;
-    let mut skipped = 0;
-    for (index, path) in files.iter().enumerate() {
-        let extension = path
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if !is_batch_supported(&extension) {
-            skipped += 1;
-            continue;
-        }
-        let document = match batch_document(path) {
-            Ok(document) => document,
-            Err(error) => {
-                eprintln!("[{}] {}: {error:#}", index + 1, path.display());
-                failed += 1;
-                continue;
-            }
-        };
-        let relative = path.strip_prefix(input).unwrap_or(path.as_path());
-        let mut target = output.join(relative);
-        target.set_extension(&args.format);
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        match xuan::io::export(&document, &target, args.quality) {
-            Ok(()) => {
-                exported += 1;
-                println!("[{}] {} -> {}", index + 1, path.display(), target.display());
-            }
-            Err(error) => {
-                eprintln!("[{}] {}: {error:#}", index + 1, path.display());
-                failed += 1;
-            }
-        }
-    }
-    Ok((exported, failed, skipped))
 }
 
 fn main() -> eframe::Result {
     let args = Args::parse();
     if let Some(input) = args.batch.clone() {
-        match batch_export(&args, &input) {
-            Ok((exported, failed, skipped)) => {
-                println!("batch: {exported} exported, {failed} failed, {skipped} skipped");
-                std::process::exit(if failed == 0 { 0 } else { 1 });
+        let preset = match args.preset.as_ref() {
+            Some(path) => match xuan::portrait::preset::PresetStore::load(path) {
+                Ok(preset) => Some(preset),
+                Err(error) => {
+                    eprintln!("batch preset failed: {error:#}");
+                    std::process::exit(1);
+                }
+            },
+            None => None,
+        };
+        let suffix = args.suffix.clone().unwrap_or_else(|| {
+            if preset.is_some() {
+                "_xiaozhu".into()
+            } else {
+                String::new()
+            }
+        });
+        let options = xuan::batch::BatchOptions {
+            output: args.out.clone().unwrap_or_else(|| input.clone()),
+            input,
+            recursive: args.recursive,
+            preset,
+            format: args.format.clone(),
+            quality: args.quality,
+            max_edge: args.max_edge.filter(|value| *value > 0),
+            suffix,
+            overwrite: args.overwrite || args.preset.is_none(),
+        };
+        match xuan::batch::run_batch(options) {
+            Ok(report) => {
+                for failure in &report.failures {
+                    eprintln!("{}: {}", failure.path.display(), failure.message);
+                }
+                println!(
+                    "batch: {} exported, {} failed, {} skipped",
+                    report.exported, report.failed, report.skipped
+                );
+                std::process::exit(if report.failed == 0 { 0 } else { 1 });
             }
             Err(error) => {
                 eprintln!("batch export failed: {error:#}");
@@ -288,6 +236,36 @@ mod cli_tests {
         assert_eq!(args.format, "jpeg");
         assert!(args.recursive);
         assert_eq!(args.quality, 80);
+    }
+
+    #[test]
+    fn parses_preset_batch_options() {
+        let args = Args::try_parse_from([
+            "xuan",
+            "--batch",
+            "in",
+            "--out",
+            "out",
+            "--preset",
+            "look.xzp",
+            "--max-edge",
+            "2048",
+            "--suffix",
+            "_edit",
+            "--overwrite",
+        ])
+        .unwrap();
+        assert_eq!(args.preset, Some(PathBuf::from("look.xzp")));
+        assert_eq!(args.max_edge, Some(2048));
+        assert_eq!(args.suffix.as_deref(), Some("_edit"));
+        assert!(args.overwrite);
+    }
+
+    #[test]
+    fn rejects_unsafe_max_edge_range() {
+        let error =
+            Args::try_parse_from(["xuan", "--batch", "in", "--max-edge", "63"]).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ValueValidation);
     }
 
     #[test]
