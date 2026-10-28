@@ -9,14 +9,16 @@ use egui::{ColorImage, Sense, TextureHandle, TextureOptions, vec2};
 use image::{Rgba, RgbaImage};
 use xuan::{
     document::{PixelStorage, Rgba16Image},
+    i18n::tr,
     portrait::{
         inference::PortraitModels,
         masks::build_portrait_masks,
-        preset::{FacePolicy, PresetV1, apply_preset_to_document},
+        preset::apply_portrait_to_storage_with_faces,
         retouch::{PortraitSettings, apply_portrait_to_rgba8},
         types::FaceLandmarks,
         warp::{
-            LiquifyBrush, LiquifyMode, LiquifyStroke, WarpGrid, apply_face_shape, apply_liquify,
+            LiquifyBrush, LiquifyMode, LiquifyStroke, WarpGrid, apply_face_shape,
+            apply_liquify_many,
         },
     },
 };
@@ -110,7 +112,7 @@ impl PortraitWorkspace {
         match result {
             Ok(faces) if faces.is_empty() => {
                 workspace.state = PortraitState::Ready;
-                workspace.error = Some("未检测到人脸".into());
+                workspace.error = Some(tr("No face detected").into());
             }
             Ok(faces) => {
                 workspace.state = PortraitState::Ready;
@@ -159,7 +161,7 @@ impl PortraitAnalysisJob {
         let worker_cancel = cancel.clone();
         let (send, receive) = mpsc::channel();
         xuan::gpu::spawn(move || {
-            let result = PortraitModels::load()
+            let result = PortraitModels::shared()
                 .and_then(|models| models.detect_with_landmarks(&source))
                 .map_err(|error| format!("{error:#}"));
             if !worker_cancel.load(Ordering::Relaxed) {
@@ -178,7 +180,9 @@ impl PortraitAnalysisJob {
         match self.receive.try_recv() {
             Ok(result) => Some(result),
             Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => Some(Err("人像分析线程意外停止".into())),
+            Err(TryRecvError::Disconnected) => {
+                Some(Err(tr("Portrait analysis stopped unexpectedly").into()))
+            }
         }
     }
 }
@@ -217,30 +221,31 @@ fn apply_strokes_normalized(
     }
     let longest = source.width().max(source.height()) as f32;
     let cell = (source.width().min(source.height()) / 32).clamp(8, 64);
-    let mut current = source.clone();
-    for stroke in strokes {
-        let grid = WarpGrid::identity([current.width(), current.height()], cell);
-        let from = [
-            stroke.from[0] * source.width() as f32,
-            stroke.from[1] * source.height() as f32,
-        ];
-        let to = [
-            stroke.to[0] * source.width() as f32,
-            stroke.to[1] * source.height() as f32,
-        ];
-        let liquify = LiquifyStroke::new(
-            from,
-            to,
-            LiquifyBrush {
-                mode: stroke.mode,
-                diameter: stroke.diameter / 900.0 * longest,
-                strength: stroke.strength,
-                hardness: stroke.hardness,
-            },
-        );
-        current = apply_liquify(&current, &grid, liquify)?;
-    }
-    Ok(current)
+    let grid = WarpGrid::identity([source.width(), source.height()], cell);
+    let liquify = strokes
+        .iter()
+        .map(|stroke| {
+            let from = [
+                stroke.from[0] * source.width() as f32,
+                stroke.from[1] * source.height() as f32,
+            ];
+            let to = [
+                stroke.to[0] * source.width() as f32,
+                stroke.to[1] * source.height() as f32,
+            ];
+            LiquifyStroke::new(
+                from,
+                to,
+                LiquifyBrush {
+                    mode: stroke.mode,
+                    diameter: stroke.diameter / 900.0 * longest,
+                    strength: stroke.strength,
+                    hardness: stroke.hardness,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    apply_liquify_many(source, &grid, &liquify)
 }
 
 fn preview_texture(context: &egui::Context, image: &RgbaImage) -> TextureHandle {
@@ -305,15 +310,15 @@ impl EditorApp {
         }
         self.portrait_job = None;
         let Some(session) = self.session() else {
-            self.error = Some("请先打开一张图片".into());
+            self.error = Some(tr("Open an image first").into());
             return;
         };
         let Some(layer) = session.document.active() else {
-            self.error = Some("请先选择一个像素图层".into());
+            self.error = Some(tr("Select a pixel layer first").into());
             return;
         };
         let Some(storage) = &layer.pixels else {
-            self.error = Some("请先选择一个像素图层".into());
+            self.error = Some(tr("Select a pixel layer first").into());
             return;
         };
         let source = storage.rgba8().clone();
@@ -358,30 +363,49 @@ impl EditorApp {
             workspace.cancel();
         }
         self.portrait = None;
-        self.status = "已取消人像精修".into();
+        self.status = tr("Portrait retouch cancelled").into();
     }
 
     fn apply_portrait_workspace(&mut self, workspace: &PortraitWorkspace) -> Result<()> {
-        let session = self.session_mut().context("请先打开一张图片")?;
-        session.history.begin("人像精修", &session.document);
+        let selected_face = workspace
+            .faces
+            .get(workspace.selected)
+            .map(|face| (face, workspace.selected_settings().cloned()));
+        let has_portrait = selected_face
+            .as_ref()
+            .and_then(|(_, settings)| settings.as_ref())
+            .is_some_and(|settings| !settings.is_identity());
+        let has_liquify = workspace
+            .liquify
+            .as_ref()
+            .is_some_and(|liquify| !liquify.strokes.is_empty());
+        if !has_portrait && !has_liquify {
+            self.portrait = None;
+            self.portrait_job = None;
+            self.status = tr("No portrait changes to apply").into();
+            return Ok(());
+        }
+        let session = self.session_mut().context(tr("Open an image first"))?;
+        session
+            .history
+            .begin(tr("Portrait Retouch"), &session.document);
         let mut document = session.document.clone();
         let result = (|| -> Result<()> {
-            if !workspace.faces.is_empty() {
-                let settings = workspace
-                    .selected_settings()
-                    .context("请选择一张脸")?
+            if let Some((face, Some(settings))) = selected_face
+                && !settings.is_identity()
+            {
+                let layer = document.active_mut().context(tr("Select a pixel layer"))?;
+                let storage = layer
+                    .pixels
+                    .as_ref()
+                    .context(tr("The layer has no pixels"))?
+                    .as_ref()
                     .clone();
-                let preset = PresetV1 {
-                    schema_version: 1,
-                    name: "人像精修".into(),
-                    color: None,
-                    portrait: Some(settings),
-                };
-                apply_preset_to_document(
-                    &mut document,
-                    &preset,
-                    FacePolicy::Selected(workspace.selected),
-                )?;
+                layer.pixels = Some(Arc::new(apply_portrait_to_storage_with_faces(
+                    &storage,
+                    &[face],
+                    &settings,
+                )?));
             }
             if let Some(liquify) = &workspace.liquify
                 && !liquify.strokes.is_empty()
@@ -398,7 +422,7 @@ impl EditorApp {
                 session.invalidate();
                 self.portrait = None;
                 self.portrait_job = None;
-                self.status = "已应用人像精修".into();
+                self.status = tr("Portrait retouch applied").into();
                 Ok(())
             }
             Err(error) => {
@@ -413,11 +437,11 @@ fn apply_liquify_to_active_layer(
     document: &mut xuan::document::Document,
     strokes: &[NormalizedLiquifyStroke],
 ) -> Result<()> {
-    let layer = document.active_mut().context("请选择一个像素图层")?;
+    let layer = document.active_mut().context(tr("Select a pixel layer"))?;
     let storage = layer
         .pixels
         .as_ref()
-        .context("图层没有像素")?
+        .context(tr("The layer has no pixels"))?
         .as_ref()
         .clone();
     match storage {
@@ -469,7 +493,9 @@ impl EditorApp {
         let mut open = true;
         let mut apply = false;
         let mut cancel = false;
-        egui::Window::new("人像精修")
+        let shift_compare =
+            context.input(|input| input.modifiers.shift && input.key_down(egui::Key::P));
+        egui::Window::new(tr("Portrait Retouch"))
             .default_width(430.0)
             .max_height(760.0)
             .open(&mut open)
@@ -478,10 +504,10 @@ impl EditorApp {
                 PortraitState::LoadingModels | PortraitState::Analyzing => {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label("正在本地分析人脸…");
+                        ui.label(tr("Analyzing faces locally…"));
                     });
-                    ui.label("首次使用需要加载本地模型。");
-                    if widgets::button(ui, "取消").clicked() {
+                    ui.label(tr("The local models are loaded on first use."));
+                    if widgets::button(ui, tr("Cancel")).clicked() {
                         cancel = true;
                     }
                 }
@@ -495,7 +521,10 @@ impl EditorApp {
                             for index in 0..face_count {
                                 let selected = index == workspace.selected;
                                 if ui
-                                    .selectable_label(selected, format!("人脸 {}", index + 1))
+                                    .selectable_label(
+                                        selected,
+                                        format!("{} {}", tr("Face"), index + 1),
+                                    )
                                     .clicked()
                                 {
                                     workspace.selected = index;
@@ -506,112 +535,112 @@ impl EditorApp {
                         ui.separator();
                         if let Some(settings) = workspace.selected_settings_mut() {
                             let mut changed = false;
-                            ui.collapsing("皮肤", |ui| {
+                            ui.collapsing(tr("Skin"), |ui| {
                                 changed |= portrait_slider(
                                     ui,
-                                    "平滑",
+                                    tr("Smooth"),
                                     &mut settings.skin_smooth,
                                     0.0..=100.0,
                                     "%",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "纹理",
+                                    tr("Texture"),
                                     &mut settings.skin_texture,
                                     0.0..=100.0,
                                     "%",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "匀肤",
+                                    tr("Even tone"),
                                     &mut settings.skin_tone,
                                     0.0..=100.0,
                                     "%",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "祛痘",
+                                    tr("Blemish"),
                                     &mut settings.blemish,
                                     0.0..=100.0,
                                     "%",
                                 );
                             });
-                            ui.collapsing("眼睛与嘴唇", |ui| {
+                            ui.collapsing(tr("Eyes & Lips"), |ui| {
                                 changed |= portrait_slider(
                                     ui,
-                                    "眼睛亮度",
+                                    tr("Eye brightness"),
                                     &mut settings.eye_brightness,
                                     0.0..=100.0,
                                     "%",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "眼睛清晰度",
+                                    tr("Eye clarity"),
                                     &mut settings.eye_clarity,
                                     0.0..=100.0,
                                     "%",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "黑眼圈",
+                                    tr("Dark circles"),
                                     &mut settings.dark_circles,
                                     0.0..=100.0,
                                     "%",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "牙齿美白",
+                                    tr("Teeth whitening"),
                                     &mut settings.teeth_whiten,
                                     0.0..=100.0,
                                     "%",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "唇色强度",
+                                    tr("Lip tint"),
                                     &mut settings.lip_tint,
                                     0.0..=100.0,
                                     "%",
                                 );
                             });
-                            ui.collapsing("脸型与五官", |ui| {
+                            ui.collapsing(tr("Shape & features"), |ui| {
                                 changed |= portrait_slider(
                                     ui,
-                                    "脸宽",
+                                    tr("Face width"),
                                     &mut settings.face_width,
                                     -100.0..=100.0,
                                     "",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "下颌",
+                                    tr("Jaw"),
                                     &mut settings.jaw,
                                     -100.0..=100.0,
                                     "",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "下巴",
+                                    tr("Chin"),
                                     &mut settings.chin,
                                     -100.0..=100.0,
                                     "",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "眼睛大小",
+                                    tr("Eye size"),
                                     &mut settings.eye_size,
                                     -100.0..=100.0,
                                     "",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "鼻翼宽度",
+                                    tr("Nose width"),
                                     &mut settings.nose_width,
                                     -100.0..=100.0,
                                     "",
                                 );
                                 changed |= portrait_slider(
                                     ui,
-                                    "嘴唇形状",
+                                    tr("Lip shape"),
                                     &mut settings.lip_shape,
                                     -100.0..=100.0,
                                     "",
@@ -624,12 +653,12 @@ impl EditorApp {
                         ui.separator();
                         let mut liquify_changed = false;
                         if let Some(liquify) = &mut workspace.liquify {
-                            ui.collapsing("手动液化", |ui| {
+                            ui.collapsing(tr("Manual liquify"), |ui| {
                                 ui.horizontal(|ui| {
                                     for (mode, label) in [
-                                        (LiquifyMode::Push, "推移"),
-                                        (LiquifyMode::Pinch, "收缩"),
-                                        (LiquifyMode::Bloat, "膨胀"),
+                                        (LiquifyMode::Push, tr("Push")),
+                                        (LiquifyMode::Pinch, tr("Pinch")),
+                                        (LiquifyMode::Bloat, tr("Bloat")),
                                     ] {
                                         if ui
                                             .selectable_label(liquify.brush.mode == mode, label)
@@ -646,7 +675,7 @@ impl EditorApp {
                                             &mut liquify.brush.diameter,
                                             8.0..=800.0,
                                         )
-                                        .text("大小")
+                                        .text(tr("Size"))
                                         .suffix(" px"),
                                     )
                                     .changed();
@@ -656,7 +685,7 @@ impl EditorApp {
                                             &mut liquify.brush.strength,
                                             1.0..=100.0,
                                         )
-                                        .text("强度")
+                                        .text(tr("Strength"))
                                         .suffix("%"),
                                     )
                                     .changed();
@@ -666,7 +695,7 @@ impl EditorApp {
                                             &mut liquify.brush.hardness,
                                             0.0..=100.0,
                                         )
-                                        .text("硬度")
+                                        .text(tr("Hardness"))
                                         .suffix("%"),
                                     )
                                     .changed();
@@ -679,7 +708,11 @@ impl EditorApp {
                             workspace.invalidate_preview();
                         }
                         ui.separator();
-                        let texture = if workspace.compare_original {
+                        let compare_button = ui.add(egui::Button::new(tr("Hold to compare")));
+                        let hold_compare = compare_button.hovered()
+                            && context.input(|input| input.pointer.primary_down());
+                        let texture = if workspace.compare_original || shift_compare || hold_compare
+                        {
                             workspace.original_preview.as_ref()
                         } else {
                             workspace.preview.as_ref()
@@ -736,18 +769,22 @@ impl EditorApp {
                                 workspace.invalidate_preview();
                             }
                         }
-                        widgets::checkbox(ui, &mut workspace.compare_original, "查看原图");
+                        widgets::checkbox(
+                            ui,
+                            &mut workspace.compare_original,
+                            tr("Show original (hold Shift+P)"),
+                        );
                         ui.separator();
                         ui.horizontal(|ui| {
-                            if widgets::primary_button(ui, "应用").clicked() {
+                            if widgets::primary_button(ui, tr("Apply")).clicked() {
                                 apply = true;
                             }
-                            if widgets::button(ui, "取消").clicked() {
+                            if widgets::button(ui, tr("Cancel")).clicked() {
                                 cancel = true;
                             }
                             let mut reset_liquify = false;
                             if let Some(liquify) = &mut workspace.liquify
-                                && widgets::button(ui, "重置液化").clicked()
+                                && widgets::button(ui, tr("Reset liquify")).clicked()
                             {
                                 liquify.strokes.clear();
                                 reset_liquify = true;
@@ -757,15 +794,15 @@ impl EditorApp {
                             }
                         });
                     } else {
-                        ui.label("未检测到人脸，仍可使用手动液化。");
+                        ui.label(tr("No face detected. Manual liquify is still available."));
                         let mut liquify_changed = false;
                         if let Some(liquify) = &mut workspace.liquify {
-                            ui.collapsing("手动液化", |ui| {
+                            ui.collapsing(tr("Manual liquify"), |ui| {
                                 ui.horizontal(|ui| {
                                     for (mode, label) in [
-                                        (LiquifyMode::Push, "推移"),
-                                        (LiquifyMode::Pinch, "收缩"),
-                                        (LiquifyMode::Bloat, "膨胀"),
+                                        (LiquifyMode::Push, tr("Push")),
+                                        (LiquifyMode::Pinch, tr("Pinch")),
+                                        (LiquifyMode::Bloat, tr("Bloat")),
                                     ] {
                                         if ui
                                             .selectable_label(liquify.brush.mode == mode, label)
@@ -781,7 +818,7 @@ impl EditorApp {
                                             &mut liquify.brush.diameter,
                                             8.0..=800.0,
                                         )
-                                        .text("大小")
+                                        .text(tr("Size"))
                                         .suffix(" px"),
                                     )
                                     .changed();
@@ -791,7 +828,7 @@ impl EditorApp {
                                             &mut liquify.brush.strength,
                                             1.0..=100.0,
                                         )
-                                        .text("强度")
+                                        .text(tr("Strength"))
                                         .suffix("%"),
                                     )
                                     .changed();
@@ -801,7 +838,7 @@ impl EditorApp {
                                             &mut liquify.brush.hardness,
                                             0.0..=100.0,
                                         )
-                                        .text("硬度")
+                                        .text(tr("Hardness"))
                                         .suffix("%"),
                                     )
                                     .changed();
@@ -811,7 +848,11 @@ impl EditorApp {
                             workspace.invalidate_preview();
                         }
                         ui.separator();
-                        let texture = if workspace.compare_original {
+                        let compare_button = ui.add(egui::Button::new(tr("Hold to compare")));
+                        let hold_compare = compare_button.hovered()
+                            && context.input(|input| input.pointer.primary_down());
+                        let texture = if workspace.compare_original || shift_compare || hold_compare
+                        {
                             workspace.original_preview.as_ref()
                         } else {
                             workspace.preview.as_ref()
@@ -868,18 +909,22 @@ impl EditorApp {
                                 workspace.invalidate_preview();
                             }
                         }
-                        widgets::checkbox(ui, &mut workspace.compare_original, "查看原图");
+                        widgets::checkbox(
+                            ui,
+                            &mut workspace.compare_original,
+                            tr("Show original (hold Shift+P)"),
+                        );
                         ui.separator();
                         ui.horizontal(|ui| {
-                            if widgets::primary_button(ui, "应用").clicked() {
+                            if widgets::primary_button(ui, tr("Apply")).clicked() {
                                 apply = true;
                             }
-                            if widgets::button(ui, "取消").clicked() {
+                            if widgets::button(ui, tr("Cancel")).clicked() {
                                 cancel = true;
                             }
                             let mut reset_liquify = false;
                             if let Some(liquify) = &mut workspace.liquify
-                                && widgets::button(ui, "重置液化").clicked()
+                                && widgets::button(ui, tr("Reset liquify")).clicked()
                             {
                                 liquify.strokes.clear();
                                 reset_liquify = true;
@@ -956,5 +1001,18 @@ mod tests {
             });
         app.apply_portrait_workspace(&workspace).unwrap();
         assert_eq!(app.session().unwrap().history.names().count(), 1);
+    }
+
+    #[test]
+    fn identity_workspace_does_not_create_history_step() {
+        let context = egui::Context::default();
+        let mut app = EditorApp::with_context(&context, Vec::new(), false, None);
+        app.dimensions = [32, 32];
+        app.new_document();
+        let source = RgbaImage::from_pixel(32, 32, Rgba([20, 40, 60, 255]));
+        let workspace =
+            PortraitWorkspace::from_analysis_with_source(Ok(Vec::new()), source).unwrap();
+        app.apply_portrait_workspace(&workspace).unwrap();
+        assert_eq!(app.session().unwrap().history.names().count(), 0);
     }
 }

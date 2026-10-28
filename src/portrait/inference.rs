@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex, OnceLock};
+
 use anyhow::{Context, Result, bail};
 use image::RgbaImage;
 use tract::prelude::*;
@@ -13,6 +15,9 @@ const MIN_FACE_EDGE: f32 = 64.0;
 const DETECTION_THRESHOLD: f32 = 0.5;
 const PRESENCE_THRESHOLD: f32 = 0.5;
 const NMS_IOU_THRESHOLD: f32 = 0.3;
+const TILE_OVERLAP: f32 = 0.25;
+const TILE_DETECTION_MIN_EDGE: u32 = 900;
+const DENSE_TILE_DETECTION_MIN_EDGE: u32 = 2000;
 
 pub struct PortraitModels {
     detector: Runnable,
@@ -20,6 +25,20 @@ pub struct PortraitModels {
 }
 
 impl PortraitModels {
+    pub fn shared() -> Result<Arc<Self>> {
+        static MODELS: OnceLock<Mutex<Option<Arc<PortraitModels>>>> = OnceLock::new();
+        let cache = MODELS.get_or_init(|| Mutex::new(None));
+        let mut cache = cache
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Portrait model cache lock is poisoned"))?;
+        if let Some(models) = cache.as_ref() {
+            return Ok(Arc::clone(models));
+        }
+        let models = Arc::new(Self::load()?);
+        *cache = Some(Arc::clone(&models));
+        Ok(models)
+    }
+
     pub fn load() -> Result<Self> {
         let detector = tract::onnx()?
             .load_buffer(DETECTOR_MODEL)?
@@ -52,16 +71,16 @@ impl PortraitModels {
     }
 
     pub fn detect(&self, image: &RgbaImage) -> Result<Vec<DetectedFace>> {
-        let (pixels, letterbox) = letterbox_rgb(image, DETECTOR_SIZE);
-        let (regressors, scores) = self.run_detector(&pixels)?;
-        let mut candidates = decode_detections(&regressors, &scores, DETECTION_THRESHOLD)?;
-        for face in &mut candidates {
-            map_face_from_model(face, &letterbox);
+        let size = [image.width(), image.height()];
+        let mut candidates = self.detect_regions(image, &detection_regions(size))?;
+        let mut faces = finalize_faces(candidates.clone());
+        // Whole-image inference is intentionally cheap. Only pay for the
+        // denser 3x3 sweep when the first pass did not find a group and the
+        // source is large enough for small faces to be plausible.
+        if faces.len() < 2 && size[0].max(size[1]) >= DENSE_TILE_DETECTION_MIN_EDGE {
+            candidates.extend(self.detect_regions(image, &grid_detection_regions(size, 3, 3))?);
+            faces = finalize_faces(candidates);
         }
-        candidates.retain(|face| face.rect[2].min(face.rect[3]) >= MIN_FACE_EDGE);
-        let mut faces = weighted_nms(candidates, NMS_IOU_THRESHOLD);
-        sort_faces(&mut faces);
-        faces.truncate(MAX_FACES);
         Ok(faces
             .into_iter()
             .enumerate()
@@ -73,6 +92,22 @@ impl PortraitModels {
                 right_eye: face.right_eye,
             })
             .collect())
+    }
+
+    fn detect_regions(&self, image: &RgbaImage, regions: &[[f32; 4]]) -> Result<Vec<FaceBox>> {
+        let mut candidates = Vec::new();
+        for region in regions {
+            let (crop, offset) = crop_region(image, *region);
+            let (pixels, letterbox) = letterbox_rgb(&crop, DETECTOR_SIZE);
+            let (regressors, scores) = self.run_detector(&pixels)?;
+            let mut detected = decode_detections(&regressors, &scores, DETECTION_THRESHOLD)?;
+            for face in &mut detected {
+                map_face_from_model(face, &letterbox);
+                map_face_from_region(face, offset, [image.width() as f32, image.height() as f32]);
+            }
+            candidates.extend(detected);
+        }
+        Ok(candidates)
     }
 
     pub fn landmarks(&self, image: &RgbaImage, face: &DetectedFace) -> Result<FaceLandmarks> {
@@ -196,6 +231,53 @@ impl PortraitModels {
         }
         Ok((points, sigmoid(presence_logit)))
     }
+}
+
+/// Detection regions always begin with the whole image. Large images also
+/// receive overlapping 2x2 crops so faces that are small in the full frame are
+/// magnified by the detector's 128px input.
+pub fn detection_regions(size: [u32; 2]) -> Vec<[f32; 4]> {
+    let width = size[0] as f32;
+    let height = size[1] as f32;
+    let mut regions = vec![[0.0, 0.0, width, height]];
+    if size[0].max(size[1]) >= TILE_DETECTION_MIN_EDGE {
+        regions.extend(grid_detection_regions(size, 2, 2));
+    }
+    regions
+}
+
+/// Build a grid of overlapping crops. The overlap is approximately 25% of a
+/// tile, which keeps faces crossing a seam visible in at least one crop.
+pub fn grid_detection_regions(size: [u32; 2], columns: u32, rows: u32) -> Vec<[f32; 4]> {
+    if columns == 0 || rows == 0 {
+        return Vec::new();
+    }
+    let width = size[0] as f32;
+    let height = size[1] as f32;
+    let tile_width = width / (1.0 + (columns as f32 - 1.0) * (1.0 - TILE_OVERLAP));
+    let tile_height = height / (1.0 + (rows as f32 - 1.0) * (1.0 - TILE_OVERLAP));
+    let step_x = if columns > 1 {
+        (width - tile_width) / (columns - 1) as f32
+    } else {
+        0.0
+    };
+    let step_y = if rows > 1 {
+        (height - tile_height) / (rows - 1) as f32
+    } else {
+        0.0
+    };
+    let mut regions = Vec::with_capacity((columns * rows) as usize);
+    for row in 0..rows {
+        for column in 0..columns {
+            regions.push([
+                column as f32 * step_x,
+                row as f32 * step_y,
+                tile_width,
+                tile_height,
+            ]);
+        }
+    }
+    regions
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -417,6 +499,52 @@ fn map_face_from_model(face: &mut FaceBox, transform: &Letterbox) {
     }
 }
 
+fn crop_region(image: &RgbaImage, region: [f32; 4]) -> (RgbaImage, [f32; 2]) {
+    let x = region[0]
+        .floor()
+        .clamp(0.0, image.width().saturating_sub(1) as f32) as u32;
+    let y = region[1]
+        .floor()
+        .clamp(0.0, image.height().saturating_sub(1) as f32) as u32;
+    let right = (region[0] + region[2])
+        .ceil()
+        .clamp(1.0, image.width() as f32) as u32;
+    let bottom = (region[1] + region[3])
+        .ceil()
+        .clamp(1.0, image.height() as f32) as u32;
+    let width = right.saturating_sub(x).max(1);
+    let height = bottom.saturating_sub(y).max(1);
+    (
+        image::imageops::crop_imm(image, x, y, width, height).to_image(),
+        [x as f32, y as f32],
+    )
+}
+
+fn map_face_from_region(face: &mut FaceBox, offset: [f32; 2], bounds: [f32; 2]) {
+    face.rect[0] += offset[0];
+    face.rect[1] += offset[1];
+    face.left_eye[0] += offset[0];
+    face.left_eye[1] += offset[1];
+    face.right_eye[0] += offset[0];
+    face.right_eye[1] += offset[1];
+    let left = face.rect[0].clamp(0.0, bounds[0]);
+    let top = face.rect[1].clamp(0.0, bounds[1]);
+    let right = (face.rect[0] + face.rect[2]).clamp(left, bounds[0]);
+    let bottom = (face.rect[1] + face.rect[3]).clamp(top, bounds[1]);
+    face.rect = [left, top, (right - left).max(1.0), (bottom - top).max(1.0)];
+}
+
+fn finalize_faces(candidates: Vec<FaceBox>) -> Vec<FaceBox> {
+    let candidates = candidates
+        .into_iter()
+        .filter(|face| face.rect[2].min(face.rect[3]) >= MIN_FACE_EDGE)
+        .collect();
+    let mut faces = weighted_nms(candidates, NMS_IOU_THRESHOLD);
+    sort_faces(&mut faces);
+    faces.truncate(MAX_FACES);
+    faces
+}
+
 fn sort_faces(faces: &mut [FaceBox]) {
     faces.sort_by(|a, b| {
         let center = |face: &FaceBox| {
@@ -586,6 +714,30 @@ mod tests {
         assert_eq!(faces.len(), 1);
         assert!((faces[0].score - 0.880_797).abs() < 0.000_1);
         assert!(faces[0].right_eye[0] > faces[0].left_eye[0]);
+    }
+
+    #[test]
+    fn tiled_detection_regions_cover_image_with_overlap() {
+        let regions = detection_regions([1680, 1000]);
+        assert!(regions.len() >= 5);
+        assert_eq!(regions[0], [0.0, 0.0, 1680.0, 1000.0]);
+        for region in &regions[1..] {
+            assert!(region[0] >= 0.0 && region[1] >= 0.0);
+            assert!(region[0] + region[2] <= 1680.0 + 0.01);
+            assert!(region[1] + region[3] <= 1000.0 + 0.01);
+            assert!(region[2] > 400.0 && region[3] > 300.0);
+        }
+        assert!(regions.iter().skip(1).any(|r| r[0] == 0.0 && r[1] > 0.0));
+        assert!(regions.iter().skip(1).any(|r| r[0] > 0.0 && r[1] == 0.0));
+        assert!(regions.iter().skip(1).any(|r| r[0] > 0.0 && r[1] > 0.0));
+    }
+
+    #[test]
+    fn shared_models_are_loaded_once() -> anyhow::Result<()> {
+        let first = PortraitModels::shared()?;
+        let second = PortraitModels::shared()?;
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+        Ok(())
     }
 
     #[test]

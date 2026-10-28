@@ -1,5 +1,16 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.1
+
+- Improve portrait detection on small and distant faces with overlapping 2x2 crops and a conditional dense 3x3 pass, merged through global weighted NMS.
+- Cache the local ONNX models process-wide and reuse the analyzed face set when applying portrait edits and batch presets; each image is detected once.
+- Add canvas face boxes, numbered selections, confidence-aware colors and the selected face's landmark outline.
+- Add hold-to-compare, `Shift+P` temporary original preview, and empty-operation history protection.
+- Compose manual-liquify strokes into one warp pass before previewing to reduce drag latency.
+- Add bilingual labels for portrait, preset and batch dialogs.
+- Add live batch progress, elapsed/ETA estimates, and copy/export actions for failed files.
+- Keep color presets working for images with no detected faces and avoid loading portrait models for color-only work.
+
 ## 0.6.0
 
 - Add fully local face detection and 478-point face landmark analysis using embedded Apache-2.0 ONNX models.

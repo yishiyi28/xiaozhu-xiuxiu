@@ -232,6 +232,19 @@ pub fn apply_preset_to_document(
     preset: &PresetV1,
     face_policy: FacePolicy,
 ) -> Result<()> {
+    apply_preset_to_document_with_faces(document, preset, face_policy, None)
+}
+
+/// Apply a preset while optionally reusing faces that were already analyzed by
+/// the caller. Passing an empty slice is meaningful: it means analysis ran and
+/// found no face, so the color portion must still be applied without a second
+/// model invocation.
+pub fn apply_preset_to_document_with_faces(
+    document: &mut Document,
+    preset: &PresetV1,
+    face_policy: FacePolicy,
+    known_faces: Option<&[FaceLandmarks]>,
+) -> Result<()> {
     preset.validate()?;
     let mut working = document.clone();
     if let Some(settings) = &preset.portrait
@@ -247,11 +260,17 @@ pub fn apply_preset_to_document(
             .context("Select a pixel layer before applying a portrait preset")?
             .as_ref()
             .clone();
-        let models = PortraitModels::load()?;
-        let faces = models.detect_with_landmarks(storage.rgba8())?;
-        let selected = select_faces(&faces, face_policy)?;
+        let detected;
+        let faces = if let Some(faces) = known_faces {
+            faces
+        } else {
+            let models = PortraitModels::shared()?;
+            detected = models.detect_with_landmarks(storage.rgba8())?;
+            &detected
+        };
+        let selected = select_faces(faces, face_policy)?;
         if !selected.is_empty() {
-            layer.pixels = Some(std::sync::Arc::new(apply_portrait_to_storage(
+            layer.pixels = Some(std::sync::Arc::new(apply_portrait_to_storage_with_faces(
                 &storage, &selected, settings,
             )?));
         }
@@ -283,7 +302,7 @@ fn select_faces(faces: &[FaceLandmarks], policy: FacePolicy) -> Result<Vec<&Face
     })
 }
 
-fn has_portrait_effect(settings: &PortraitSettings) -> bool {
+pub fn has_portrait_effect(settings: &PortraitSettings) -> bool {
     [
         settings.skin_smooth,
         settings.skin_texture,
@@ -305,11 +324,15 @@ fn has_portrait_effect(settings: &PortraitSettings) -> bool {
     .any(|value| *value != 0.0)
 }
 
-fn apply_portrait_to_storage(
+pub fn apply_portrait_to_storage_with_faces(
     storage: &PixelStorage,
     faces: &[&FaceLandmarks],
     settings: &PortraitSettings,
 ) -> Result<PixelStorage> {
+    settings.validate()?;
+    if settings.is_identity() || faces.is_empty() {
+        return Ok(storage.clone());
+    }
     match storage {
         PixelStorage::Rgba8(source) => {
             let mut current = (**source).clone();
@@ -453,6 +476,42 @@ mod tests {
             }),
         };
         apply_preset_to_document(&mut document, &preset, FacePolicy::AllFaces).unwrap();
+        assert!(
+            document
+                .layers
+                .iter()
+                .any(|layer| matches!(layer.adjustment, Some(Adjustment::ColorGrade { .. })))
+        );
+    }
+
+    #[test]
+    fn known_empty_face_analysis_still_applies_color_grade() {
+        let mut document = Document::new(16, 12).unwrap();
+        let layer = Layer::from_storage(
+            "Photo",
+            PixelStorage::from_rgba8(RgbaImage::from_pixel(16, 12, Rgba([120, 100, 80, 255]))),
+        );
+        document.active = Some(layer.id);
+        document.layers = vec![layer];
+        let preset = PresetV1 {
+            schema_version: 1,
+            name: "Known empty".into(),
+            color: Some(crate::document::ColorGrade {
+                contrast: 8.0,
+                ..Default::default()
+            }),
+            portrait: Some(PortraitSettings {
+                skin_smooth: 20.0,
+                ..Default::default()
+            }),
+        };
+        apply_preset_to_document_with_faces(
+            &mut document,
+            &preset,
+            FacePolicy::AllFaces,
+            Some(&[]),
+        )
+        .unwrap();
         assert!(
             document
                 .layers

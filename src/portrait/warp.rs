@@ -137,23 +137,35 @@ pub fn apply_liquify(
     grid: &WarpGrid,
     stroke: LiquifyStroke,
 ) -> Result<RgbaImage> {
+    apply_liquify_many(source, grid, &[stroke])
+}
+
+/// Compose several liquify strokes into one grid before sampling the source.
+/// This avoids re-warping the entire preview once per mouse/pen segment.
+pub fn apply_liquify_many(
+    source: &RgbaImage,
+    grid: &WarpGrid,
+    strokes: &[LiquifyStroke],
+) -> Result<RgbaImage> {
     let mut grid = grid.clone();
-    let radius = (stroke.brush.diameter * 0.5).max(1.0);
-    let hardness = (stroke.brush.hardness / 100.0).clamp(0.0, 1.0);
-    let strength = ((stroke.brush.strength / 100.0) * (0.5 + hardness * 0.5)).clamp(0.0, 1.0);
-    match stroke.brush.mode {
-        LiquifyMode::Push => {
-            let delta = [stroke.to[0] - stroke.from[0], stroke.to[1] - stroke.from[1]];
-            grid.add_displacement(stroke.from, radius, delta, strength);
-        }
-        LiquifyMode::Pinch | LiquifyMode::Bloat => {
-            let amount = radius * 0.25 * strength;
-            let signed = if stroke.brush.mode == LiquifyMode::Pinch {
-                -amount
-            } else {
-                amount
-            };
-            grid.add_radial(stroke.from, radius, signed, strength);
+    for stroke in strokes {
+        let radius = (stroke.brush.diameter * 0.5).max(1.0);
+        let hardness = (stroke.brush.hardness / 100.0).clamp(0.0, 1.0);
+        let strength = ((stroke.brush.strength / 100.0) * (0.5 + hardness * 0.5)).clamp(0.0, 1.0);
+        match stroke.brush.mode {
+            LiquifyMode::Push => {
+                let delta = [stroke.to[0] - stroke.from[0], stroke.to[1] - stroke.from[1]];
+                grid.add_displacement(stroke.from, radius, delta, strength);
+            }
+            LiquifyMode::Pinch | LiquifyMode::Bloat => {
+                let amount = radius * 0.25 * strength;
+                let signed = if stroke.brush.mode == LiquifyMode::Pinch {
+                    -amount
+                } else {
+                    amount
+                };
+                grid.add_radial(stroke.from, radius, signed, strength);
+            }
         }
     }
     Ok(apply_warp(source, &grid))

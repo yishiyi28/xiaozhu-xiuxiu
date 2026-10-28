@@ -11,7 +11,11 @@ use xuan::{
     selection::{self, SelectionMode},
 };
 
-use super::{EditorApp, Gesture, Tool, TransformDrag, theme};
+use super::{
+    EditorApp, Gesture, Tool, TransformDrag,
+    portrait::{PortraitState, PortraitWorkspace},
+    theme,
+};
 
 const HANDLES: [Point; 8] = [
     Point::new(0.0, 0.0),
@@ -204,6 +208,9 @@ impl EditorApp {
                             Color32::WHITE,
                         );
                     }
+                }
+                if let Some(workspace) = self.portrait.as_ref() {
+                    draw_portrait_overlay(&painter, workspace, origin, zoom);
                 }
                 painter.rect_stroke(
                     canvas,
@@ -1471,6 +1478,63 @@ impl EditorApp {
         self.guides.clear();
         if tool.is_brush() {
             self.last_brush = Some(end);
+        }
+    }
+}
+
+const FACE_OVAL: [usize; 36] = [
+    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152,
+    148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+];
+
+fn draw_portrait_overlay(
+    painter: &egui::Painter,
+    workspace: &PortraitWorkspace,
+    origin: Pos2,
+    zoom: f32,
+) {
+    if workspace.state != PortraitState::Ready {
+        return;
+    }
+    for (index, face) in workspace.faces.iter().enumerate() {
+        let selected = index == workspace.selected;
+        let color = if selected {
+            Color32::from_rgb(95, 220, 165)
+        } else if face.presence < 0.65 {
+            Color32::from_rgb(240, 174, 82)
+        } else {
+            Color32::from_rgb(220, 224, 232)
+        };
+        let rect = face.face.rect;
+        let screen = Rect::from_min_size(
+            origin + vec2(rect[0], rect[1]) * zoom,
+            vec2(rect[2], rect[3]) * zoom,
+        );
+        painter.rect_stroke(
+            screen,
+            3.0,
+            Stroke::new(if selected { 2.0 } else { 1.2_f32 }, color),
+            StrokeKind::Outside,
+        );
+        painter.text(
+            screen.left_top() + vec2(4.0, -3.0),
+            egui::Align2::LEFT_BOTTOM,
+            format!("{} {}", tr("Face"), index + 1),
+            egui::FontId::proportional(12.0),
+            color,
+        );
+        if selected && face.points.len() > *FACE_OVAL.iter().max().unwrap_or(&0) {
+            let points = FACE_OVAL
+                .iter()
+                .filter_map(|index| face.points.get(*index))
+                .map(|point| origin + vec2(point.position[0], point.position[1]) * zoom)
+                .collect::<Vec<_>>();
+            if points.len() > 2 {
+                painter.add(egui::Shape::closed_line(
+                    points,
+                    Stroke::new(1.4_f32, color),
+                ));
+            }
         }
     }
 }

@@ -93,6 +93,21 @@ impl PortraitSettings {
         .iter()
         .all(|value| *value == 0.0)
     }
+
+    /// True when neither retouching nor geometric reshaping changes pixels.
+    pub fn is_identity(&self) -> bool {
+        self.is_retouch_identity()
+            && [
+                self.face_width,
+                self.jaw,
+                self.chin,
+                self.eye_size,
+                self.nose_width,
+                self.lip_shape,
+            ]
+            .iter()
+            .all(|value| *value == 0.0)
+    }
 }
 
 pub fn apply_portrait_to_rgba8(

@@ -1049,7 +1049,13 @@ fn painting_refreshes_only_the_changed_layer_thumbnail() {
 #[test]
 fn portrait_workspace_reports_no_face() {
     let workspace = PortraitWorkspace::from_analysis(Ok(Vec::new())).unwrap();
-    assert!(workspace.error.as_deref().unwrap().contains("未检测到人脸"));
+    assert!(
+        workspace
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("No face detected")
+    );
     assert_eq!(workspace.state, PortraitState::Ready);
     assert!(workspace.faces.is_empty());
 }

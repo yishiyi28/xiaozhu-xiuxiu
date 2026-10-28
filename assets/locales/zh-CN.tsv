@@ -574,3 +574,77 @@ Posterize	色调分离
 Pixelate	像素化
 Midpoint	中点
 Softness	柔和度
+Portrait Retouch	人像精修
+No face detected	未检测到人脸
+Portrait analysis stopped unexpectedly	人像分析线程意外停止
+Open an image first	请先打开一张图片
+Select a pixel layer first	请先选择一个像素图层
+Select a pixel layer	请选择一个像素图层
+The layer has no pixels	图层没有像素
+Portrait retouch cancelled	已取消人像精修
+No portrait changes to apply	没有可应用的人像修改
+Portrait retouch applied	已应用人像精修
+Analyzing faces locally…	正在本地分析人脸…
+The local models are loaded on first use.	首次使用需要加载本地模型。
+Face	人脸
+Skin	皮肤
+Smooth	平滑
+Even tone	匀肤
+Blemish	祛痘
+Eyes & Lips	眼睛与嘴唇
+Eye brightness	眼睛亮度
+Eye clarity	眼睛清晰度
+Dark circles	黑眼圈
+Teeth whitening	牙齿美白
+Lip tint	唇色强度
+Shape & features	脸型与五官
+Face width	脸宽
+Jaw	下颌
+Chin	下巴
+Eye size	眼睛大小
+Nose width	鼻翼宽度
+Lip shape	嘴唇形状
+Manual liquify	手动液化
+Push	推移
+Pinch	收缩
+Bloat	膨胀
+Hold to compare	按住查看原图
+Show original (hold Shift+P)	查看原图（Shift+P 临时）
+Reset liquify	重置液化
+No face detected. Manual liquify is still available.	未检测到人脸，仍可使用手动液化。
+Select a face	请选择一张脸
+Batch worker stopped unexpectedly	批量线程意外停止
+Batch Export	批量出片
+Input folder	输入目录
+Choose…	选择…
+Output folder	输出目录
+Include subfolders	包含子目录
+Overwrite existing	覆盖同名文件
+User presets	用户预设
+Max edge	最长边
+ px (0 = original)	 px（0 = 原尺寸）
+Filename suffix	文件名后缀
+Choose input, output, and a preset.	请选择输入目录、输出目录和预设。
+Progress	进度
+Current	当前
+Elapsed	已用
+ETA	预计剩余
+Copy failures	复制失败列表
+Export failures…	导出失败列表…
+Processing…	正在处理…
+Batch cancellation requested	已请求取消批量任务
+Invalid preset	预设格式错误
+Built-in presets	内置预设
+Import…	导入…
+Clear Portrait	清透人像
+Completed	成功
+Cool	冷调
+Failed	失败
+Film	胶片
+High-contrast Mono	高反差黑白
+Mono	黑白
+Preset	预设
+Skipped	跳过
+Soft Film	柔雾胶片
+Start	开始
+Warm	暖阳

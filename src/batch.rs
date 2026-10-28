@@ -4,7 +4,9 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
+        mpsc::Sender,
     },
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, bail};
@@ -12,8 +14,22 @@ use anyhow::{Context, Result, bail};
 use crate::{
     document::{Document, Layer},
     io, operations,
-    portrait::preset::{FacePolicy, PresetV1, apply_preset_to_document},
+    portrait::{
+        inference::PortraitModels,
+        preset::{FacePolicy, PresetV1, apply_preset_to_document_with_faces, has_portrait_effect},
+    },
 };
+
+#[derive(Clone, Debug)]
+pub struct BatchProgress {
+    pub completed: usize,
+    pub total: usize,
+    pub exported: usize,
+    pub failed: usize,
+    pub skipped: usize,
+    pub current: Option<PathBuf>,
+    pub elapsed: Duration,
+}
 
 #[derive(Clone, Debug)]
 pub struct BatchOptions {
@@ -62,6 +78,13 @@ impl BatchOptions {
 }
 
 pub fn run_batch(options: BatchOptions) -> Result<BatchReport> {
+    run_batch_with_progress(options, None)
+}
+
+pub fn run_batch_with_progress(
+    options: BatchOptions,
+    progress: Option<Sender<BatchProgress>>,
+) -> Result<BatchReport> {
     if !options.input.is_dir() {
         bail!("--batch expects a directory");
     }
@@ -70,8 +93,29 @@ pub fn run_batch(options: BatchOptions) -> Result<BatchReport> {
     let mut files = Vec::new();
     collect_files(&options.input, options.recursive, &mut files)?;
     files.sort();
+    let models = if options
+        .preset
+        .as_ref()
+        .and_then(|preset| preset.portrait.as_ref())
+        .is_some_and(has_portrait_effect)
+    {
+        Some(PortraitModels::shared()?)
+    } else {
+        None
+    };
+    let total = files.len();
+    let started = Instant::now();
+    let mut completed = 0;
     let mut report = BatchReport::default();
     for path in files {
+        send_progress(
+            progress.as_ref(),
+            completed,
+            total,
+            &report,
+            Some(path.clone()),
+            started.elapsed(),
+        );
         if options
             .cancel
             .as_ref()
@@ -86,6 +130,7 @@ pub fn run_batch(options: BatchOptions) -> Result<BatchReport> {
             .to_ascii_lowercase();
         if !is_batch_supported(&extension) {
             report.skipped += 1;
+            completed += 1;
             continue;
         }
         let relative = path.strip_prefix(&options.input).unwrap_or(path.as_path());
@@ -95,9 +140,10 @@ pub fn run_batch(options: BatchOptions) -> Result<BatchReport> {
         let target = options.output.join(target_relative);
         if !options.overwrite && target.exists() {
             report.skipped += 1;
+            completed += 1;
             continue;
         }
-        let result = process_file(&path, &target, &options);
+        let result = process_file(&path, &target, &options, models.as_deref());
         match result {
             Ok(()) => report.exported += 1,
             Err(error) => {
@@ -108,8 +154,38 @@ pub fn run_batch(options: BatchOptions) -> Result<BatchReport> {
                 });
             }
         }
+        completed += 1;
     }
+    send_progress(
+        progress.as_ref(),
+        completed,
+        total,
+        &report,
+        None,
+        started.elapsed(),
+    );
     Ok(report)
+}
+
+fn send_progress(
+    sender: Option<&Sender<BatchProgress>>,
+    completed: usize,
+    total: usize,
+    report: &BatchReport,
+    current: Option<PathBuf>,
+    elapsed: Duration,
+) {
+    if let Some(sender) = sender {
+        let _ = sender.send(BatchProgress {
+            completed,
+            total,
+            exported: report.exported,
+            failed: report.failed,
+            skipped: report.skipped,
+            current,
+            elapsed,
+        });
+    }
 }
 
 pub fn is_batch_supported(extension: &str) -> bool {
@@ -167,10 +243,29 @@ fn collect_files(directory: &Path, recursive: bool, files: &mut Vec<PathBuf>) ->
     Ok(())
 }
 
-fn process_file(source: &Path, target: &Path, options: &BatchOptions) -> Result<()> {
+fn process_file(
+    source: &Path,
+    target: &Path,
+    options: &BatchOptions,
+    models: Option<&PortraitModels>,
+) -> Result<()> {
     let mut document = load_batch_document(source)?;
     if let Some(preset) = &options.preset {
-        apply_preset_to_document(&mut document, preset, FacePolicy::AllFaces)?;
+        let known_faces = if let Some(models) = models
+            && preset.portrait.as_ref().is_some_and(has_portrait_effect)
+        {
+            let layer = document.active().context("Batch layer is missing")?;
+            let storage = layer.pixels.as_ref().context("Batch layer has no pixels")?;
+            Some(models.detect_with_landmarks(storage.rgba8())?)
+        } else {
+            None
+        };
+        apply_preset_to_document_with_faces(
+            &mut document,
+            preset,
+            FacePolicy::AllFaces,
+            known_faces.as_deref(),
+        )?;
     }
     if let Some(max_edge) = options.max_edge
         && max_edge > 0
@@ -196,6 +291,7 @@ fn process_file(source: &Path, target: &Path, options: &BatchOptions) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::portrait::preset::apply_preset_to_document;
     use image::{Rgba, RgbaImage};
     use std::fs;
 
@@ -304,6 +400,28 @@ mod tests {
             .unwrap()
             .to_rgba8();
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn batch_reports_progress_and_finishes_with_completed_total() {
+        let dir = tempfile::tempdir().unwrap();
+        write_png(&dir.path().join("one.png"));
+        write_png(&dir.path().join("two.png"));
+        let mut options = BatchOptions::test_fixture(dir.path(), true);
+        options.output = dir.path().join("out");
+        let (send, receive) = std::sync::mpsc::channel();
+        let report = run_batch_with_progress(options, Some(send)).unwrap();
+        assert_eq!(report.exported, 2);
+        let events: Vec<_> = receive.try_iter().collect();
+        assert!(
+            events
+                .iter()
+                .any(|event| event.total == 2 && event.current.is_some())
+        );
+        let last = events.last().unwrap();
+        assert_eq!(last.current, None);
+        assert_eq!(last.completed, 2);
+        assert_eq!(last.total, 2);
     }
 
     fn write_png(path: &Path) {

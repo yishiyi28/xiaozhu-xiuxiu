@@ -1,4 +1,7 @@
-use xuan::portrait::preset::{PresetStore, PresetV1};
+use xuan::{
+    i18n::tr,
+    portrait::preset::{PresetStore, PresetV1},
+};
 
 use super::{EditorApp, widgets};
 
@@ -37,7 +40,7 @@ impl PresetDialogState {
                 self.selected = Some(preset);
                 self.error = None;
             }
-            Err(error) => self.error = Some(format!("预设格式错误: {error}")),
+            Err(error) => self.error = Some(format!("{}: {error}", tr("Invalid preset"))),
         }
     }
 
@@ -57,33 +60,33 @@ impl EditorApp {
         let mut apply = false;
         let mut import = false;
         let mut export = false;
-        widgets::Window::new("预设")
+        widgets::Window::new(tr("Presets"))
             .default_width(360.0)
             .open(&mut open)
             .show(context, |ui| {
-                ui.label("内置预设");
+                ui.label(tr("Built-in presets"));
                 ui.horizontal_wrapped(|ui| {
-                    for (slug, preset) in [
-                        ("natural", "自然通透"),
-                        ("clear-portrait", "清透人像"),
-                        ("warm", "暖阳"),
-                        ("cool", "冷调"),
-                        ("film", "胶片"),
-                        ("soft-film", "柔雾胶片"),
-                        ("mono", "黑白"),
-                        ("high-contrast-mono", "高反差黑白"),
+                    for (slug, label) in [
+                        ("natural", tr("Natural")),
+                        ("clear-portrait", tr("Clear Portrait")),
+                        ("warm", tr("Warm")),
+                        ("cool", tr("Cool")),
+                        ("film", tr("Film")),
+                        ("soft-film", tr("Soft Film")),
+                        ("mono", tr("Mono")),
+                        ("high-contrast-mono", tr("High-contrast Mono")),
                     ] {
-                        if ui
-                            .selectable_label(dialog.selected_name() == preset, preset)
-                            .clicked()
-                        {
+                        let selected = PresetV1::builtin(slug)
+                            .ok()
+                            .is_some_and(|preset| dialog.selected_name() == preset.name);
+                        if ui.selectable_label(selected, label).clicked() {
                             dialog.select_builtin(slug);
                         }
                     }
                 });
                 if !dialog.user_presets.is_empty() {
                     ui.separator();
-                    ui.label("用户预设");
+                    ui.label(tr("User presets"));
                     ui.horizontal_wrapped(|ui| {
                         for preset in &dialog.user_presets {
                             if ui
@@ -104,14 +107,14 @@ impl EditorApp {
                 }
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if widgets::button(ui, "导入…").clicked() {
+                    if widgets::button(ui, tr("Import…")).clicked() {
                         import = true;
                     }
-                    if widgets::button(ui, "导出…").clicked() {
+                    if widgets::button(ui, tr("Export…")).clicked() {
                         export = true;
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if widgets::primary_button(ui, "应用").clicked() {
+                        if widgets::primary_button(ui, tr("Apply")).clicked() {
                             apply = true;
                         }
                     });
