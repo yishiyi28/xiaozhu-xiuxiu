@@ -249,13 +249,12 @@ pub fn apply_preset_to_document(
             .clone();
         let models = PortraitModels::load()?;
         let faces = models.detect_with_landmarks(storage.rgba8())?;
-        if faces.is_empty() {
-            bail!("No face was detected for portrait preset");
-        }
         let selected = select_faces(&faces, face_policy)?;
-        layer.pixels = Some(std::sync::Arc::new(apply_portrait_to_storage(
-            &storage, &selected, settings,
-        )?));
+        if !selected.is_empty() {
+            layer.pixels = Some(std::sync::Arc::new(apply_portrait_to_storage(
+                &storage, &selected, settings,
+            )?));
+        }
     }
     if let Some(color) = &preset.color {
         let mut layer = Layer::blank(
@@ -430,6 +429,36 @@ mod tests {
             assert_eq!(preset.schema_version, 1);
             assert!(!preset.name.is_empty());
         }
+    }
+
+    #[test]
+    fn all_faces_preset_keeps_color_grade_without_a_detected_face() {
+        let mut document = Document::new(16, 12).unwrap();
+        let layer = Layer::from_storage(
+            "Photo",
+            PixelStorage::from_rgba8(RgbaImage::from_pixel(16, 12, Rgba([120, 100, 80, 255]))),
+        );
+        document.active = Some(layer.id);
+        document.layers = vec![layer];
+        let preset = PresetV1 {
+            schema_version: 1,
+            name: "Mixed batch".into(),
+            color: Some(crate::document::ColorGrade {
+                contrast: 8.0,
+                ..Default::default()
+            }),
+            portrait: Some(PortraitSettings {
+                skin_smooth: 20.0,
+                ..Default::default()
+            }),
+        };
+        apply_preset_to_document(&mut document, &preset, FacePolicy::AllFaces).unwrap();
+        assert!(
+            document
+                .layers
+                .iter()
+                .any(|layer| matches!(layer.adjustment, Some(Adjustment::ColorGrade { .. })))
+        );
     }
 
     #[test]
