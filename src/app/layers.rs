@@ -66,6 +66,7 @@ struct Actions {
     finish_rename: Option<bool>,
     edit_adjustment: Option<Uuid>,
     edit_filter: Option<Uuid>,
+    edit_portrait: Option<Uuid>,
     edit_text: Option<Uuid>,
     edit_raw: Option<Uuid>,
 }
@@ -344,6 +345,8 @@ impl EditorApp {
                                                     tr("Mask · Layers below")
                                                 }
                                                 .to_owned()
+                                            } else if layer.portrait.is_some() {
+                                                tr("Portrait Retouch").to_owned()
                                             } else if let Some(adjustment) = &layer.adjustment {
                                                 tr(adjustment.name()).to_owned()
                                             } else if let Some(filter) = &layer.filter {
@@ -402,6 +405,8 @@ impl EditorApp {
                 actions.rename = Some(layer.id);
             } else if layer.raw.is_some() {
                 actions.edit_raw = Some(layer.id);
+            } else if layer.portrait.is_some() {
+                actions.edit_portrait = Some(layer.id);
             } else if layer.adjustment.is_some() {
                 actions.edit_adjustment = Some(layer.id);
             } else if layer.filter.is_some() {
@@ -437,6 +442,10 @@ impl EditorApp {
             }
             if layer.text.is_some() && ui.button(tr("Edit text…")).clicked() {
                 actions.edit_text = Some(layer.id);
+                ui.close();
+            }
+            if layer.portrait.is_some() && ui.button(tr("Edit portrait…")).clicked() {
+                actions.edit_portrait = Some(layer.id);
                 ui.close();
             }
             if layer.adjustment.is_some() && ui.button(tr("Edit adjustment…")).clicked() {
@@ -546,11 +555,12 @@ impl EditorApp {
             36.0
         };
         let canvas_size = vec2(document.width as f32, document.height as f32);
-        let size = if layer.adjustment.is_some() || layer.filter.is_some() {
-            vec2(side, side)
-        } else {
-            canvas_size * (side / canvas_size.max_elem())
-        };
+        let size =
+            if layer.adjustment.is_some() || layer.filter.is_some() || layer.portrait.is_some() {
+                vec2(side, side)
+            } else {
+                canvas_size * (side / canvas_size.max_elem())
+            };
         let key = (layer.id, mask);
         if session
             .thumbnails
@@ -770,6 +780,12 @@ impl EditorApp {
         }
         if let Some(id) = actions.edit_filter {
             self.edit_filter_layer(id);
+        }
+        if let Some(id) = actions.edit_portrait {
+            if let Some(session) = self.session_mut() {
+                session.document.select(id, false);
+            }
+            self.open_portrait_workspace(ctx);
         }
         if let Some(id) = actions.edit_text {
             self.start_text(Some(id), xuan::document::Point::default());

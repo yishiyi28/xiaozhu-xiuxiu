@@ -5,21 +5,17 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use image::{Rgba, RgbaImage};
 use serde::{Deserialize, Deserializer, Serialize};
 use tempfile::NamedTempFile;
 
 use crate::{
     config::Config,
-    document::{Adjustment, ColorGrade, Document, Layer, PixelStorage, Rgba16Image},
+    document::{Adjustment, ColorGrade, Document, Layer},
 };
 
 use super::{
-    inference::PortraitModels,
-    masks::build_portrait_masks,
-    retouch::{PortraitSettings, apply_portrait_to_rgba8, apply_portrait_to_rgba16},
+    inference::PortraitModels, layer::PortraitAdjustment, retouch::PortraitSettings,
     types::FaceLandmarks,
-    warp::apply_face_shape,
 };
 
 pub const BUILTIN_NAMES: [&str; 8] = [
@@ -251,10 +247,10 @@ pub fn apply_preset_to_document_with_faces(
         && !matches!(face_policy, FacePolicy::NoPortrait)
         && has_portrait_effect(settings)
     {
-        let layer = working
-            .active_mut()
+        let source_layer = working
+            .active()
             .context("Select a pixel layer before applying a portrait preset")?;
-        let storage = layer
+        let storage = source_layer
             .pixels
             .as_ref()
             .context("Select a pixel layer before applying a portrait preset")?
@@ -270,9 +266,25 @@ pub fn apply_preset_to_document_with_faces(
         };
         let selected = select_faces(faces, face_policy)?;
         if !selected.is_empty() {
-            layer.pixels = Some(std::sync::Arc::new(apply_portrait_to_storage_with_faces(
-                &storage, &selected, settings,
-            )?));
+            let selected_index = match face_policy {
+                FacePolicy::Selected(index) => index,
+                _ => 0,
+            };
+            let source_size = [storage.rgba8().width(), storage.rgba8().height()];
+            let mut portrait_layer = Layer::blank(
+                format!("{} — Portrait", preset.name),
+                working.width,
+                working.height,
+            );
+            portrait_layer.portrait = Some(PortraitAdjustment {
+                source_size,
+                faces: faces.to_vec(),
+                settings: vec![settings.clone(); faces.len()],
+                selected: selected_index,
+                apply_to_all: matches!(face_policy, FacePolicy::AllFaces),
+                liquify: Vec::new(),
+            });
+            working.insert(portrait_layer);
         }
     }
     if let Some(color) = &preset.color {
@@ -322,107 +334,6 @@ pub fn has_portrait_effect(settings: &PortraitSettings) -> bool {
     ]
     .iter()
     .any(|value| *value != 0.0)
-}
-
-pub fn apply_portrait_to_storage_with_faces(
-    storage: &PixelStorage,
-    faces: &[&FaceLandmarks],
-    settings: &PortraitSettings,
-) -> Result<PixelStorage> {
-    settings.validate()?;
-    if settings.is_identity() || faces.is_empty() {
-        return Ok(storage.clone());
-    }
-    match storage {
-        PixelStorage::Rgba8(source) => {
-            let mut current = (**source).clone();
-            for face in faces {
-                let masks =
-                    build_portrait_masks(&current, face, [current.width(), current.height()])?;
-                let mut output = current.clone();
-                apply_portrait_to_rgba8(&current, &mut output, &masks, settings)?;
-                if has_reshape(settings) {
-                    output = apply_face_shape(&output, face, settings)?;
-                }
-                current = output;
-            }
-            Ok(PixelStorage::from_rgba8(current))
-        }
-        PixelStorage::Rgba16 { pixels, .. } => {
-            let mut current = (**pixels).clone();
-            let mut preview = storage.rgba8().clone();
-            for face in faces {
-                let masks =
-                    build_portrait_masks(&preview, face, [preview.width(), preview.height()])?;
-                current = apply_portrait_to_rgba16(&current, &masks, settings)?;
-                preview = to_rgba8(&current);
-            }
-            if has_reshape(settings) {
-                current = warp_rgba16_preserving_depth(&current, faces, settings)?;
-            }
-            Ok(PixelStorage::from_rgba16(current))
-        }
-    }
-}
-
-fn has_reshape(settings: &PortraitSettings) -> bool {
-    [
-        settings.face_width,
-        settings.jaw,
-        settings.chin,
-        settings.eye_size,
-        settings.nose_width,
-        settings.lip_shape,
-    ]
-    .iter()
-    .any(|value| *value != 0.0)
-}
-
-fn warp_rgba16_preserving_depth(
-    source: &Rgba16Image,
-    faces: &[&FaceLandmarks],
-    settings: &PortraitSettings,
-) -> Result<Rgba16Image> {
-    let before = to_rgba8(source);
-    let mut after = before.clone();
-    for face in faces {
-        after = apply_face_shape(&after, face, settings)?;
-    }
-    Ok(image::ImageBuffer::from_fn(
-        source.width(),
-        source.height(),
-        |x, y| {
-            let old = source.get_pixel(x, y);
-            let old8 = before.get_pixel(x, y);
-            let new8 = after.get_pixel(x, y);
-            let scale = |before: u8, after: u8, value: u16| -> u16 {
-                if before == 0 {
-                    u16::from(after) * 257
-                } else {
-                    (u32::from(value) * u32::from(after) / u32::from(before))
-                        .min(u32::from(u16::MAX)) as u16
-                }
-            };
-            Rgba([
-                scale(old8[0], new8[0], old[0]),
-                scale(old8[1], new8[1], old[1]),
-                scale(old8[2], new8[2], old[2]),
-                old[3],
-            ])
-        },
-    ))
-}
-
-fn to_rgba8(source: &Rgba16Image) -> RgbaImage {
-    RgbaImage::from_fn(source.width(), source.height(), |x, y| {
-        let pixel = source.get_pixel(x, y);
-        Rgba([
-            (pixel[0] >> 8) as u8,
-            (pixel[1] >> 8) as u8,
-            (pixel[2] >> 8) as u8,
-            (pixel[3] >> 8) as u8,
-        ])
-    })
 }
 
 #[cfg(test)]
@@ -482,6 +393,41 @@ mod tests {
                 .iter()
                 .any(|layer| matches!(layer.adjustment, Some(Adjustment::ColorGrade { .. })))
         );
+    }
+
+    #[test]
+    fn portrait_preset_creates_a_layer_without_touching_source_pixels() {
+        let source = RgbaImage::from_fn(64, 64, |x, y| {
+            Rgba([(x * 3) as u8, (y * 3) as u8, 120, 255])
+        });
+        let base = Layer::from_storage("Photo", PixelStorage::from_rgba8(source.clone()));
+        let mut document = Document::new(64, 64).unwrap();
+        document.active = Some(base.id);
+        document.layers = vec![base];
+        let face = crate::portrait::test_fixtures::synthetic_landmarks();
+        let preset = PresetV1 {
+            schema_version: 1,
+            name: "Portrait".into(),
+            color: None,
+            portrait: Some(PortraitSettings {
+                skin_smooth: 20.0,
+                ..Default::default()
+            }),
+        };
+        apply_preset_to_document_with_faces(
+            &mut document,
+            &preset,
+            FacePolicy::AllFaces,
+            Some(&[face]),
+        )
+        .unwrap();
+        assert_eq!(document.layers[0].pixels.as_ref().unwrap().rgba8(), &source);
+        assert!(document.layers.iter().any(|layer| {
+            layer
+                .portrait
+                .as_ref()
+                .is_some_and(|recipe| recipe.apply_to_all)
+        }));
     }
 
     #[test]

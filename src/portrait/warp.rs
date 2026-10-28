@@ -1,5 +1,6 @@
 use anyhow::Result;
 use image::{Rgba, RgbaImage};
+use serde::{Deserialize, Serialize};
 
 use super::retouch::PortraitSettings;
 use super::types::FaceLandmarks;
@@ -91,14 +92,14 @@ impl WarpGrid {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LiquifyMode {
     Push,
     Pinch,
     Bloat,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LiquifyBrush {
     pub mode: LiquifyMode,
     pub diameter: f32,
@@ -106,7 +107,7 @@ pub struct LiquifyBrush {
     pub hardness: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LiquifyStroke {
     pub from: [f32; 2],
     pub to: [f32; 2],

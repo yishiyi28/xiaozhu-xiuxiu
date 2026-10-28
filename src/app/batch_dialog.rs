@@ -9,7 +9,7 @@ use std::{
 };
 
 use xuan::{
-    batch::{BatchOptions, BatchProgress, BatchReport, run_batch_with_progress},
+    batch::{BatchOptions, BatchProgress, BatchReport, ConflictPolicy, run_batch_with_progress},
     i18n::tr,
     portrait::preset::PresetV1,
 };
@@ -26,7 +26,7 @@ pub struct BatchDialogState {
     pub quality: u8,
     pub max_edge: u32,
     pub suffix: String,
-    pub overwrite: bool,
+    pub conflict: ConflictPolicy,
     pub error: Option<String>,
     pub report: Option<BatchReport>,
     pub progress: Option<BatchProgress>,
@@ -44,7 +44,7 @@ impl Default for BatchDialogState {
             quality: 92,
             max_edge: 0,
             suffix: "_xiaozhu".into(),
-            overwrite: false,
+            conflict: ConflictPolicy::Skip,
             error: None,
             report: None,
             progress: None,
@@ -169,7 +169,21 @@ impl EditorApp {
                 });
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut dialog.recursive, tr("Include subfolders"));
-                    ui.checkbox(&mut dialog.overwrite, tr("Overwrite existing"));
+                });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Existing files"));
+                    for (policy, label) in [
+                        (ConflictPolicy::Skip, tr("Skip")),
+                        (ConflictPolicy::Overwrite, tr("Overwrite")),
+                        (ConflictPolicy::Rename, tr("Auto-number")),
+                    ] {
+                        if ui
+                            .selectable_label(dialog.conflict == policy, label)
+                            .clicked()
+                        {
+                            dialog.conflict = policy;
+                        }
+                    }
                 });
                 ui.separator();
                 ui.label(tr("Preset"));
@@ -338,7 +352,7 @@ impl EditorApp {
                 quality: dialog.quality,
                 max_edge: (dialog.max_edge > 0).then_some(dialog.max_edge),
                 suffix: dialog.suffix.clone(),
-                overwrite: dialog.overwrite,
+                conflict: dialog.conflict,
                 cancel: None,
             };
             self.batch_job = Some(BatchJob::spawn(options, context.clone()));

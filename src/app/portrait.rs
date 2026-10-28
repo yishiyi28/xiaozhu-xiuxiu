@@ -6,14 +6,14 @@ use std::sync::{
 
 use anyhow::{Context, Result};
 use egui::{ColorImage, Sense, TextureHandle, TextureOptions, vec2};
-use image::{Rgba, RgbaImage};
+use image::RgbaImage;
+use uuid::Uuid;
 use xuan::{
-    document::{PixelStorage, Rgba16Image},
     i18n::tr,
     portrait::{
         inference::PortraitModels,
+        layer::PortraitAdjustment,
         masks::build_portrait_masks,
-        preset::apply_portrait_to_storage_with_faces,
         retouch::{PortraitSettings, apply_portrait_to_rgba8},
         types::FaceLandmarks,
         warp::{
@@ -69,12 +69,14 @@ pub struct PortraitWorkspace {
     pub state: PortraitState,
     pub faces: Vec<FaceLandmarks>,
     pub selected: usize,
+    pub apply_to_all: bool,
     pub settings: Vec<PortraitSettings>,
     pub preview: Option<TextureHandle>,
     original_preview: Option<TextureHandle>,
     pub compare_original: bool,
     pub error: Option<String>,
     pub liquify: Option<LiquifySession>,
+    editing_layer: Option<Uuid>,
     source: RgbaImage,
     preview_revision: u64,
     last_preview_revision: u64,
@@ -86,12 +88,14 @@ impl PortraitWorkspace {
             state: PortraitState::Analyzing,
             faces: Vec::new(),
             selected: 0,
+            apply_to_all: false,
             settings: Vec::new(),
             preview: None,
             original_preview: None,
             compare_original: false,
             error: None,
             liquify: Some(LiquifySession::default()),
+            editing_layer: None,
             source: RgbaImage::new(1, 1),
             preview_revision: 1,
             last_preview_revision: 0,
@@ -127,6 +131,40 @@ impl PortraitWorkspace {
         Ok(workspace)
     }
 
+    pub fn from_adjustment(
+        source: RgbaImage,
+        recipe: PortraitAdjustment,
+        editing_layer: Uuid,
+    ) -> Self {
+        let mut workspace = Self::analyzing();
+        workspace.source = source;
+        workspace.state = PortraitState::Ready;
+        workspace.faces = recipe.faces;
+        workspace.apply_to_all = recipe.apply_to_all;
+        workspace.settings = recipe.settings;
+        workspace.selected = recipe.selected.min(workspace.faces.len().saturating_sub(1));
+        workspace.editing_layer = Some(editing_layer);
+        let width = workspace.source.width() as f32;
+        let height = workspace.source.height() as f32;
+        let longest = width.max(height).max(1.0);
+        workspace.liquify = Some(LiquifySession {
+            strokes: recipe
+                .liquify
+                .into_iter()
+                .map(|stroke| NormalizedLiquifyStroke {
+                    from: [stroke.from[0] / width, stroke.from[1] / height],
+                    to: [stroke.to[0] / width, stroke.to[1] / height],
+                    mode: stroke.brush.mode,
+                    diameter: stroke.brush.diameter / longest * 900.0,
+                    strength: stroke.brush.strength,
+                    hardness: stroke.brush.hardness,
+                })
+                .collect(),
+            ..LiquifySession::default()
+        });
+        workspace
+    }
+
     pub fn cancel(&mut self) {
         self.state = PortraitState::Idle;
         self.faces.clear();
@@ -135,6 +173,7 @@ impl PortraitWorkspace {
         self.original_preview = None;
         self.error = None;
         self.liquify = None;
+        self.editing_layer = None;
     }
 
     fn selected_settings(&self) -> Option<&PortraitSettings> {
@@ -317,6 +356,22 @@ impl EditorApp {
             self.error = Some(tr("Select a pixel layer first").into());
             return;
         };
+        if let Some(recipe) = layer.portrait.clone() {
+            let id = layer.id;
+            let index = session
+                .document
+                .layers
+                .iter()
+                .position(|candidate| candidate.id == id)
+                .unwrap_or(0);
+            let mut below = session.document.clone();
+            below.layers.truncate(index);
+            let source = xuan::render::render(&below);
+            self.portrait = Some(PortraitWorkspace::from_adjustment(source, recipe, id));
+            self.portrait_job = None;
+            context.request_repaint();
+            return;
+        }
         let Some(storage) = &layer.pixels else {
             self.error = Some(tr("Select a pixel layer first").into());
             return;
@@ -371,10 +426,17 @@ impl EditorApp {
             .faces
             .get(workspace.selected)
             .map(|face| (face, workspace.selected_settings().cloned()));
-        let has_portrait = selected_face
-            .as_ref()
-            .and_then(|(_, settings)| settings.as_ref())
-            .is_some_and(|settings| !settings.is_identity());
+        let has_portrait = if workspace.apply_to_all {
+            workspace
+                .settings
+                .iter()
+                .any(|settings| !settings.is_identity())
+        } else {
+            selected_face
+                .as_ref()
+                .and_then(|(_, settings)| settings.as_ref())
+                .is_some_and(|settings| !settings.is_identity())
+        };
         let has_liquify = workspace
             .liquify
             .as_ref()
@@ -391,26 +453,62 @@ impl EditorApp {
             .begin(tr("Portrait Retouch"), &session.document);
         let mut document = session.document.clone();
         let result = (|| -> Result<()> {
-            if let Some((face, Some(settings))) = selected_face
-                && !settings.is_identity()
-            {
-                let layer = document.active_mut().context(tr("Select a pixel layer"))?;
-                let storage = layer
-                    .pixels
-                    .as_ref()
-                    .context(tr("The layer has no pixels"))?
-                    .as_ref()
-                    .clone();
-                layer.pixels = Some(Arc::new(apply_portrait_to_storage_with_faces(
-                    &storage,
-                    &[face],
-                    &settings,
-                )?));
-            }
-            if let Some(liquify) = &workspace.liquify
-                && !liquify.strokes.is_empty()
-            {
-                apply_liquify_to_active_layer(&mut document, &liquify.strokes)?;
+            let width = document.width;
+            let height = document.height;
+            let longest = width.max(height) as f32;
+            let liquify = workspace
+                .liquify
+                .as_ref()
+                .map(|session| {
+                    session
+                        .strokes
+                        .iter()
+                        .map(|stroke| {
+                            LiquifyStroke::new(
+                                [
+                                    stroke.from[0] * width as f32,
+                                    stroke.from[1] * height as f32,
+                                ],
+                                [stroke.to[0] * width as f32, stroke.to[1] * height as f32],
+                                LiquifyBrush {
+                                    mode: stroke.mode,
+                                    diameter: stroke.diameter / 900.0 * longest,
+                                    strength: stroke.strength,
+                                    hardness: stroke.hardness,
+                                },
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let recipe = PortraitAdjustment {
+                source_size: [width, height],
+                faces: workspace.faces.clone(),
+                settings: workspace.settings.clone(),
+                selected: workspace.selected,
+                apply_to_all: workspace.apply_to_all,
+                liquify,
+            };
+            if let Some(id) = workspace.editing_layer {
+                let layer = document
+                    .layers
+                    .iter_mut()
+                    .find(|layer| layer.id == id)
+                    .context(tr("Portrait layer is no longer available"))?;
+                if layer.portrait.is_none() {
+                    anyhow::bail!(tr("Portrait layer is no longer available"));
+                }
+                layer.portrait = Some(recipe);
+            } else {
+                if !document
+                    .active()
+                    .is_some_and(|layer| layer.pixels.is_some())
+                {
+                    anyhow::bail!(tr("Select a pixel layer"));
+                }
+                let mut layer = xuan::document::Layer::blank(tr("Portrait Retouch"), width, height);
+                layer.portrait = Some(recipe);
+                document.insert(layer);
             }
             Ok(())
         })();
@@ -431,51 +529,6 @@ impl EditorApp {
             }
         }
     }
-}
-
-fn apply_liquify_to_active_layer(
-    document: &mut xuan::document::Document,
-    strokes: &[NormalizedLiquifyStroke],
-) -> Result<()> {
-    let layer = document.active_mut().context(tr("Select a pixel layer"))?;
-    let storage = layer
-        .pixels
-        .as_ref()
-        .context(tr("The layer has no pixels"))?
-        .as_ref()
-        .clone();
-    match storage {
-        PixelStorage::Rgba8(source) => {
-            let output = apply_strokes_normalized(&source, strokes)?;
-            layer.pixels = Some(Arc::new(PixelStorage::from_rgba8(output)));
-        }
-        PixelStorage::Rgba16 { ref pixels, .. } => {
-            let before = storage.rgba8().clone();
-            let after = apply_strokes_normalized(&before, strokes)?;
-            let mapped: Rgba16Image =
-                image::ImageBuffer::from_fn(pixels.width(), pixels.height(), |x, y| {
-                    let old = pixels.get_pixel(x, y);
-                    let old8 = before.get_pixel(x, y);
-                    let new8 = after.get_pixel(x, y);
-                    let scale = |before: u8, after: u8, value: u16| -> u16 {
-                        if before == 0 {
-                            u16::from(after) * 257
-                        } else {
-                            (u32::from(value) * u32::from(after) / u32::from(before))
-                                .min(u32::from(u16::MAX)) as u16
-                        }
-                    };
-                    Rgba([
-                        scale(old8[0], new8[0], old[0]),
-                        scale(old8[1], new8[1], old[1]),
-                        scale(old8[2], new8[2], old[2]),
-                        old[3],
-                    ])
-                });
-            layer.pixels = Some(Arc::new(PixelStorage::from_rgba16(mapped)));
-        }
-    }
-    Ok(())
 }
 
 impl EditorApp {
@@ -972,6 +1025,8 @@ fn portrait_slider(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::Rgba;
+    use xuan::document::PixelStorage;
 
     #[test]
     fn no_face_workspace_can_apply_manual_liquify() {
@@ -1001,6 +1056,34 @@ mod tests {
             });
         app.apply_portrait_workspace(&workspace).unwrap();
         assert_eq!(app.session().unwrap().history.names().count(), 1);
+    }
+
+    #[test]
+    fn active_portrait_layer_reopens_without_reanalysis() {
+        let context = egui::Context::default();
+        let mut app = EditorApp::with_context(&context, Vec::new(), false, None);
+        app.dimensions = [32, 32];
+        app.new_document();
+        let session = app.session_mut().unwrap();
+        let source = RgbaImage::from_pixel(32, 32, Rgba([20, 40, 60, 255]));
+        session.document.active_mut().unwrap().pixels =
+            Some(Arc::new(PixelStorage::from_rgba8(source)));
+        let mut portrait_layer = xuan::document::Layer::blank("Portrait", 32, 32);
+        portrait_layer.portrait = Some(PortraitAdjustment {
+            source_size: [32, 32],
+            faces: Vec::new(),
+            settings: Vec::new(),
+            selected: 0,
+            apply_to_all: false,
+            liquify: Vec::new(),
+        });
+        let id = portrait_layer.id;
+        session.document.layers.push(portrait_layer);
+        session.document.select(id, false);
+        app.open_portrait_workspace(&context);
+        assert!(app.portrait_job.is_none());
+        let workspace = app.portrait.as_ref().expect("portrait workspace");
+        assert_eq!(workspace.editing_layer, Some(id));
     }
 
     #[test]

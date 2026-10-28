@@ -593,6 +593,8 @@ pub struct Layer {
     pub standalone_mask: bool,
     pub adjustment: Option<Adjustment>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub portrait: Option<crate::portrait::layer::PortraitAdjustment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter: Option<crate::effects::Filter>,
     #[serde(default)]
     pub shape: Option<ShapeStyle>,
@@ -606,7 +608,10 @@ pub struct Layer {
 
 impl Layer {
     pub fn is_effect(&self) -> bool {
-        self.standalone_mask || self.adjustment.is_some() || self.filter.is_some()
+        self.standalone_mask
+            || self.adjustment.is_some()
+            || self.portrait.is_some()
+            || self.filter.is_some()
     }
 
     pub fn can_attach_effects(&self) -> bool {
@@ -628,6 +633,7 @@ impl Layer {
             mask: None,
             standalone_mask: false,
             adjustment: None,
+            portrait: None,
             filter: None,
             shape: None,
             text: None,

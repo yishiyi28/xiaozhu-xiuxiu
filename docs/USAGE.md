@@ -166,13 +166,13 @@ shown as children when a project is opened. Save as `.xuan` to preserve the stac
 
 ## Portrait retouch and presets
 
-Choose **Edit → Portrait Retouch…** (or press `P`) with a pixel layer selected. The first portrait session loads the embedded local models and detects up to eight faces. Select a face chip, adjust skin, eye, teeth, lip and face-shape controls, then use **Apply**. The full-resolution result is one undo step.
+Choose **Edit → Portrait Retouch…** (or press `P`) with a pixel layer selected. The first portrait session loads the embedded local models and detects up to eight faces. Select a face chip, adjust skin, eye, teeth, lip and face-shape controls, then use **Apply**. The result is a non-destructive **Portrait Retouch** adjustment layer; the source image pixels remain untouched.
 
-The preview supports a manual liquify brush: choose Push, Pinch or Bloat, set size, strength and hardness, then drag directly on the preview. Hold the original-view checkbox to compare the untouched source. Face shaping and liquify are raster edits; the original image layer remains recoverable through undo.
+The preview supports a manual liquify brush: choose Push, Pinch or Bloat, set size, strength and hardness, then drag directly on the preview. Hold the original-view checkbox to compare the untouched source. Portrait layers persist face landmarks, settings and liquify strokes in `.xuan` projects. Double-click the layer, or use **Edit portrait…** in its context menu, to reopen the recipe. Hide, delete or mask the layer to control its contribution.
 
 Presets contain color grade and portrait settings. Apply a built-in preset from **File → Presets**, or use **Manage Presets…** to import/export `.xzp` files. User presets are stored under `%APPDATA%\xiaozhu-xiuxiu\presets\` on Windows or the matching XDG configuration directory on Linux. Applying a preset is one history transaction; invalid files are rejected without changing the document.
 
-Portrait analysis is local-only. Photos, landmarks and presets are never uploaded. RAW batch processing and automatic body landmarks are not part of 0.6.1; use manual liquify for body adjustments.
+Portrait analysis is local-only. Photos, landmarks and presets are never uploaded. RAW batch processing and automatic body landmarks are not part of 0.6.2; use manual liquify for body adjustments.
 
 ### Batch export
 
@@ -182,7 +182,7 @@ Use **File → Batch Export…** or the CLI:
 xiaozhu-xiuxiu --batch .\photos --out .\output --preset .\look.xzp --format jpeg --quality 92 --max-edge 2048 --suffix _edit
 ```
 
-Add `--recursive` to include subdirectories and `--overwrite` to replace existing outputs. With a preset, the default suffix is `_xiaozhu`; without `--preset`, the original batch behavior is preserved. Batch failures are reported per file and do not stop the remaining images.
+Add `--recursive` to include subdirectories. Existing outputs can be skipped, replaced with `--overwrite`, or automatically numbered with `--auto-number`. With a preset, the default suffix is `_xiaozhu`; without `--preset`, the original batch behavior is preserved. Batch failures are reported per file and do not stop the remaining images.
 
 ## Files and export
 

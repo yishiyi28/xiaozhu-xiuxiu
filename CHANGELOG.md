@@ -1,5 +1,13 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.2
+
+- Add non-destructive Portrait Retouch adjustment layers that persist face landmarks, per-face settings, and liquify strokes while leaving source pixels untouched.
+- Reopen portrait layers by double-clicking the layer or using the layer context menu; portrait adjustments can be hidden, deleted, masked, and saved in `.xuan` projects.
+- Support portrait recipe rendering in both 8-bit and 16-bit CPU paths, with a safe GPU fallback while the compositor gains dedicated portrait acceleration.
+- Add batch conflict policies for skipping, overwriting, or automatically numbering existing outputs, including the CLI `--auto-number` option.
+- Localize the new portrait-layer and batch-conflict controls.
+
 ## 0.6.1
 
 - Improve portrait detection on small and distant faces with overlapping 2x2 crops and a conditional dense 3x3 pass, merged through global weighted NMS.

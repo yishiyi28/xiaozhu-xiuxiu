@@ -31,6 +31,14 @@ pub struct BatchProgress {
     pub elapsed: Duration,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ConflictPolicy {
+    #[default]
+    Skip,
+    Overwrite,
+    Rename,
+}
+
 #[derive(Clone, Debug)]
 pub struct BatchOptions {
     pub input: PathBuf,
@@ -41,7 +49,7 @@ pub struct BatchOptions {
     pub quality: u8,
     pub max_edge: Option<u32>,
     pub suffix: String,
-    pub overwrite: bool,
+    pub conflict: ConflictPolicy,
     pub cancel: Option<Arc<AtomicBool>>,
 }
 
@@ -71,7 +79,11 @@ impl BatchOptions {
             quality: 92,
             max_edge: None,
             suffix: "_xiaozhu".into(),
-            overwrite,
+            conflict: if overwrite {
+                ConflictPolicy::Overwrite
+            } else {
+                ConflictPolicy::Skip
+            },
             cancel: None,
         }
     }
@@ -138,7 +150,12 @@ pub fn run_batch_with_progress(
         let stem = path.file_stem().unwrap_or_default().to_string_lossy();
         target_relative.set_file_name(format!("{stem}{}.{}", options.suffix, options.format));
         let target = options.output.join(target_relative);
-        if !options.overwrite && target.exists() {
+        let target = if target.exists() && options.conflict == ConflictPolicy::Rename {
+            numbered_target(&target)
+        } else {
+            target
+        };
+        if options.conflict == ConflictPolicy::Skip && target.exists() {
             report.skipped += 1;
             completed += 1;
             continue;
@@ -165,6 +182,24 @@ pub fn run_batch_with_progress(
         started.elapsed(),
     );
     Ok(report)
+}
+
+fn numbered_target(target: &Path) -> PathBuf {
+    let parent = target.parent().unwrap_or_else(|| Path::new(""));
+    let stem = target.file_stem().unwrap_or_default().to_string_lossy();
+    let extension = target.extension().and_then(|value| value.to_str());
+    let mut index = 1u32;
+    loop {
+        let name = match extension {
+            Some(extension) => format!("{stem}-{index}.{extension}"),
+            None => format!("{stem}-{index}"),
+        };
+        let candidate = parent.join(name);
+        if !candidate.exists() {
+            return candidate;
+        }
+        index += 1;
+    }
 }
 
 fn send_progress(
@@ -362,6 +397,24 @@ mod tests {
         let report = run_batch(options).unwrap();
         assert_eq!(report.exported, 0);
         assert!(!dir.path().join("out/one_xiaozhu.png").exists());
+    }
+
+    #[test]
+    fn batch_auto_numbers_existing_target_when_requested() {
+        let dir = tempfile::tempdir().unwrap();
+        write_png(&dir.path().join("photo.png"));
+        let mut options = BatchOptions::test_fixture(dir.path(), true);
+        options.output = dir.path().join("out");
+        fs::create_dir_all(&options.output).unwrap();
+        fs::write(options.output.join("photo_xiaozhu.png"), b"keep").unwrap();
+        options.conflict = ConflictPolicy::Rename;
+        let report = run_batch(options).unwrap();
+        assert_eq!(report.exported, 1);
+        assert_eq!(
+            fs::read(dir.path().join("out/photo_xiaozhu.png")).unwrap(),
+            b"keep"
+        );
+        assert!(dir.path().join("out/photo_xiaozhu-1.png").exists());
     }
 
     #[test]

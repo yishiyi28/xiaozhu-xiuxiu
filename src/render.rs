@@ -153,6 +153,8 @@ pub(crate) enum CompositeStep<'a> {
     Layer(&'a Layer),
     Filtered(&'a Layer, RgbaImage),
     Filtered16(&'a Layer, Rgba16Image),
+    Portrait(&'a Layer, RgbaImage),
+    Portrait16(&'a Layer, Rgba16Image),
     EndGroup,
 }
 
@@ -314,7 +316,9 @@ pub(crate) fn render16(document: &Document) -> Rgba16Image {
 pub(crate) fn render_scaled16(document: &Document, width: u32, height: u32) -> Rgba16Image {
     let prepared = prepare_attachments(document);
     let prepared = prepared.as_ref();
-    if let Some(result) = crate::gpu::compose16(prepared, width, height) {
+    if !prepared.layers.iter().any(|layer| layer.portrait.is_some())
+        && let Some(result) = crate::gpu::compose16(prepared, width, height)
+    {
         return result;
     }
     let mut resized = prepared.clone();
@@ -332,7 +336,9 @@ pub(crate) fn render_scaled16(document: &Document, width: u32, height: u32) -> R
 pub fn render_scaled(document: &Document, width: u32, height: u32) -> RgbaImage {
     let prepared = prepare_attachments(document);
     let document = prepared.as_ref();
-    if let Some(result) = crate::gpu::compose(document, width, height) {
+    if !document.layers.iter().any(|layer| layer.portrait.is_some())
+        && let Some(result) = crate::gpu::compose(document, width, height)
+    {
         return result;
     }
     let mut filtered = document.clone();
@@ -364,15 +370,24 @@ pub(crate) fn render_pixels(document: &Document, width: u32, height: u32) -> Rgb
     let document = prepared.as_ref();
     let mut steps = Vec::new();
     for step in composite_steps(document) {
-        if let CompositeStep::Layer(layer) = step
-            && let Some(filter) = &layer.filter
-        {
-            let backdrop = render_steps(document, &steps, width, height);
-            let filter = filter.scaled(width as f32 / document.width as f32);
-            steps.push(CompositeStep::Filtered(
-                layer,
-                crate::effects::filtered(&backdrop, &filter),
-            ));
+        if let CompositeStep::Layer(layer) = step {
+            if let Some(filter) = &layer.filter {
+                let backdrop = render_steps(document, &steps, width, height);
+                let filter = filter.scaled(width as f32 / document.width as f32);
+                steps.push(CompositeStep::Filtered(
+                    layer,
+                    crate::effects::filtered(&backdrop, &filter),
+                ));
+            } else if let Some(portrait) = &layer.portrait {
+                let backdrop = render_steps(document, &steps, width, height);
+                let adjusted = portrait.apply_to_rgba8(&backdrop).unwrap_or_else(|error| {
+                    eprintln!("Portrait layer could not be rendered: {error:#}");
+                    backdrop
+                });
+                steps.push(CompositeStep::Portrait(layer, adjusted));
+            } else {
+                steps.push(step);
+            }
         } else {
             steps.push(step);
         }
@@ -435,15 +450,24 @@ fn render_pixels16(document: &Document, width: u32, height: u32) -> Rgba16Image 
     let document = prepared.as_ref();
     let mut steps = Vec::new();
     for step in composite_steps(document) {
-        if let CompositeStep::Layer(layer) = step
-            && let Some(filter) = &layer.filter
-        {
-            let backdrop = render_steps16(document, &steps, width, height);
-            let filter = filter.scaled(width as f32 / document.width as f32);
-            steps.push(CompositeStep::Filtered16(
-                layer,
-                crate::effects::filtered16(&backdrop, &filter),
-            ));
+        if let CompositeStep::Layer(layer) = step {
+            if let Some(filter) = &layer.filter {
+                let backdrop = render_steps16(document, &steps, width, height);
+                let filter = filter.scaled(width as f32 / document.width as f32);
+                steps.push(CompositeStep::Filtered16(
+                    layer,
+                    crate::effects::filtered16(&backdrop, &filter),
+                ));
+            } else if let Some(portrait) = &layer.portrait {
+                let backdrop = render_steps16(document, &steps, width, height);
+                let adjusted = portrait.apply_to_rgba16(&backdrop).unwrap_or_else(|error| {
+                    eprintln!("Portrait layer could not be rendered at 16-bit: {error:#}");
+                    backdrop
+                });
+                steps.push(CompositeStep::Portrait16(layer, adjusted));
+            } else {
+                steps.push(step);
+            }
         } else {
             steps.push(step);
         }
@@ -522,6 +546,34 @@ fn composite_at(
                     * own_mask(layer, point)
                     * inherited_coverage(document, layer, point);
                 pixel = attachments::mix(pixel, filtered, amount);
+                continue;
+            }
+            CompositeStep::Portrait(layer, image) => {
+                let adjusted = sample(
+                    image,
+                    Point::new(
+                        point.x / document.width as f32,
+                        point.y / document.height as f32,
+                    ),
+                );
+                let amount = layer.opacity
+                    * own_mask(layer, point)
+                    * inherited_coverage(document, layer, point);
+                pixel = attachments::mix(pixel, adjusted, amount);
+                continue;
+            }
+            CompositeStep::Portrait16(layer, image) => {
+                let adjusted = sample16(
+                    image,
+                    Point::new(
+                        point.x / document.width as f32,
+                        point.y / document.height as f32,
+                    ),
+                );
+                let amount = layer.opacity
+                    * own_mask(layer, point)
+                    * inherited_coverage(document, layer, point);
+                pixel = attachments::mix(pixel, adjusted, amount);
                 continue;
             }
         };

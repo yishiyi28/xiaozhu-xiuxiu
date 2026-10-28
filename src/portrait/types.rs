@@ -1,4 +1,6 @@
-#[derive(Clone, Debug, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DetectedFace {
     pub id: u32,
     /// Face rectangle in source-image pixels: x, y, width, height.
@@ -8,7 +10,7 @@ pub struct DetectedFace {
     pub right_eye: [f32; 2],
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LandmarkPoint {
     /// Landmark centre in source-image pixels.
     pub position: [f32; 2],
@@ -16,7 +18,7 @@ pub struct LandmarkPoint {
     pub depth: f32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FaceLandmarks {
     pub face: DetectedFace,
     pub points: Vec<LandmarkPoint>,

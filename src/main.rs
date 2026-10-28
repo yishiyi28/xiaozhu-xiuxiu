@@ -78,8 +78,12 @@ struct Args {
     suffix: Option<String>,
 
     /// Replace existing output files during --batch
-    #[arg(long, requires = "batch")]
+    #[arg(long, requires = "batch", conflicts_with = "auto_number")]
     overwrite: bool,
+
+    /// Add a numeric suffix when an output file already exists during --batch
+    #[arg(long, requires = "batch", conflicts_with = "overwrite")]
+    auto_number: bool,
 }
 
 fn parse_max_edge(value: &str) -> Result<u32, String> {
@@ -122,7 +126,13 @@ fn main() -> eframe::Result {
             quality: args.quality,
             max_edge: args.max_edge.filter(|value| *value > 0),
             suffix,
-            overwrite: args.overwrite || args.preset.is_none(),
+            conflict: if args.auto_number {
+                xuan::batch::ConflictPolicy::Rename
+            } else if args.overwrite || args.preset.is_none() {
+                xuan::batch::ConflictPolicy::Overwrite
+            } else {
+                xuan::batch::ConflictPolicy::Skip
+            },
             cancel: None,
         };
         match xuan::batch::run_batch(options) {
@@ -260,6 +270,12 @@ mod cli_tests {
         assert_eq!(args.max_edge, Some(2048));
         assert_eq!(args.suffix.as_deref(), Some("_edit"));
         assert!(args.overwrite);
+    }
+
+    #[test]
+    fn parses_auto_number_batch_option() {
+        let args = Args::try_parse_from(["xuan", "--batch", "in", "--auto-number"]).unwrap();
+        assert!(args.auto_number);
     }
 
     #[test]

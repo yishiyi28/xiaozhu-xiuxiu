@@ -328,8 +328,11 @@ impl GpuCompositor {
                     continue;
                 }
                 render::CompositeStep::Layer(layer) => layer,
-                render::CompositeStep::Filtered(..) | render::CompositeStep::Filtered16(..) => {
-                    unreachable!("GPU filters use the accumulated composite texture")
+                render::CompositeStep::Filtered(..)
+                | render::CompositeStep::Filtered16(..)
+                | render::CompositeStep::Portrait(..)
+                | render::CompositeStep::Portrait16(..) => {
+                    unreachable!("GPU effects use the accumulated composite texture")
                 }
             };
             if !layer.standalone_mask
