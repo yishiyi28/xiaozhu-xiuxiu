@@ -19,6 +19,7 @@ pub struct BatchDialogState {
     pub output: String,
     pub recursive: bool,
     pub preset: Option<PresetV1>,
+    pub user_presets: Vec<PresetV1>,
     pub format: String,
     pub quality: u8,
     pub max_edge: u32,
@@ -35,6 +36,7 @@ impl Default for BatchDialogState {
             output: String::new(),
             recursive: false,
             preset: None,
+            user_presets: xuan::portrait::preset::PresetStore::user_presets().unwrap_or_default(),
             format: "png".into(),
             quality: 92,
             max_edge: 0,
@@ -162,6 +164,20 @@ impl EditorApp {
                         }
                     }
                 });
+                if !dialog.user_presets.is_empty() {
+                    ui.label("用户预设");
+                    ui.horizontal_wrapped(|ui| {
+                        for preset in &dialog.user_presets {
+                            let selected = dialog
+                                .preset
+                                .as_ref()
+                                .is_some_and(|current| current.name == preset.name);
+                            if ui.selectable_label(selected, &preset.name).clicked() {
+                                dialog.preset = Some(preset.clone());
+                            }
+                        }
+                    });
+                }
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("格式");

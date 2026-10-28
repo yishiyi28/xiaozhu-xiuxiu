@@ -122,9 +122,10 @@ impl EditorApp {
                 .add_filter("小猪修修 preset", &["xzp"])
                 .pick_file()
         {
-            match PresetStore::load(&path) {
+            match PresetStore::import(&path) {
                 Ok(preset) => {
                     dialog.selected = Some(preset);
+                    dialog.user_presets = PresetStore::user_presets().unwrap_or_default();
                     dialog.error = None;
                 }
                 Err(error) => dialog.error = Some(format!("{error:#}")),

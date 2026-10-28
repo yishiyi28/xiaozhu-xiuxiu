@@ -192,8 +192,17 @@ impl PresetStore {
         let name = preset
             .name
             .chars()
-            .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
-            .collect::<String>();
+            .map(|ch| {
+                if ch.is_alphanumeric() || matches!(ch, ' ' | '-' | '_') {
+                    ch
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>()
+            .trim()
+            .to_owned();
+        let name = if name.is_empty() { "preset" } else { &name };
         let target = Self::user_dir()?.join(format!("{name}.xzp"));
         Self::save(&preset, &target)?;
         Ok(preset)
