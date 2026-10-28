@@ -180,6 +180,13 @@ impl EditorApp {
                                     &mut action,
                                 );
                             });
+                            item(
+                                ui,
+                                tr("Batch Export…"),
+                                "",
+                                "batch_export_dialog",
+                                &mut action,
+                            );
                             ui.menu_button(tr("Presets"), |ui| {
                                 for (label, command) in [
                                     ("Natural", "preset_natural"),
@@ -195,6 +202,7 @@ impl EditorApp {
                                 }
                                 ui.separator();
                                 item(ui, tr("Import Preset…"), "", "preset_import", &mut action);
+                                item(ui, tr("Manage Presets…"), "", "preset_manage", &mut action);
                             });
                             ui.separator();
                             ui.add_enabled_ui(has_doc, |ui| {

@@ -1,6 +1,10 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use anyhow::{Context, Result, bail};
@@ -22,6 +26,7 @@ pub struct BatchOptions {
     pub max_edge: Option<u32>,
     pub suffix: String,
     pub overwrite: bool,
+    pub cancel: Option<Arc<AtomicBool>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,6 +56,7 @@ impl BatchOptions {
             max_edge: None,
             suffix: "_xiaozhu".into(),
             overwrite,
+            cancel: None,
         }
     }
 }
@@ -66,6 +72,13 @@ pub fn run_batch(options: BatchOptions) -> Result<BatchReport> {
     files.sort();
     let mut report = BatchReport::default();
     for path in files {
+        if options
+            .cancel
+            .as_ref()
+            .is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+        {
+            break;
+        }
         let extension = path
             .extension()
             .and_then(|value| value.to_str())
@@ -238,6 +251,21 @@ mod tests {
             .unwrap()
             .to_rgba8();
         assert_eq!(output.dimensions(), (64, 32));
+    }
+
+    #[test]
+    fn batch_honours_cancellation_between_files() {
+        let dir = tempfile::tempdir().unwrap();
+        write_png(&dir.path().join("one.png"));
+        write_png(&dir.path().join("two.png"));
+        let mut options = BatchOptions::test_fixture(dir.path(), true);
+        options.output = dir.path().join("out");
+        options.cancel = Some(std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+            true,
+        )));
+        let report = run_batch(options).unwrap();
+        assert_eq!(report.exported, 0);
+        assert!(!dir.path().join("out/one_xiaozhu.png").exists());
     }
 
     fn write_png(path: &Path) {

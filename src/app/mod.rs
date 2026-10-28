@@ -1,4 +1,5 @@
 use xuan::i18n::tr;
+mod batch_dialog;
 mod canvas;
 mod chrome;
 mod clipboard;
@@ -16,6 +17,7 @@ mod levels_controls;
 mod menus;
 mod panels;
 mod portrait;
+mod preset_dialog;
 pub(crate) use portrait::{PortraitAnalysisJob, PortraitWorkspace};
 mod settings;
 mod shortcuts;
@@ -399,6 +401,9 @@ pub struct EditorApp {
     job: Option<jobs::Job>,
     portrait: Option<PortraitWorkspace>,
     portrait_job: Option<PortraitAnalysisJob>,
+    preset_dialog: Option<preset_dialog::PresetDialogState>,
+    batch_dialog: Option<batch_dialog::BatchDialogState>,
+    batch_job: Option<batch_dialog::BatchJob>,
     develop: Option<develop::Develop>,
     inactive_develop: Vec<develop::Develop>,
     raw_queue: std::collections::VecDeque<(PathBuf, develop::DevelopTarget)>,
@@ -554,6 +559,9 @@ impl EditorApp {
             job: None,
             portrait: None,
             portrait_job: None,
+            preset_dialog: None,
+            batch_dialog: None,
+            batch_job: None,
             develop: None,
             inactive_develop: Vec::new(),
             raw_queue: Default::default(),
@@ -1617,6 +1625,12 @@ impl EditorApp {
                     xuan::effects::apply_adjustment(doc, &Adjustment::Invert, mask)
                 });
             }
+            "preset_manage" => {
+                self.preset_dialog = Some(preset_dialog::PresetDialogState::default());
+            }
+            "batch_export_dialog" => {
+                self.batch_dialog = Some(batch_dialog::BatchDialogState::default());
+            }
             "preset_import" => {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("小猪修修 preset", &["xzp"])
@@ -1761,6 +1775,8 @@ impl EditorApp {
             self.canvas(ctx);
         }
         self.portrait_workspace(ctx);
+        self.preset_dialog(ctx);
+        self.batch_dialog(ctx);
         self.dialogs(ctx);
         if self.gesture.is_none()
             && self.effect.is_none()

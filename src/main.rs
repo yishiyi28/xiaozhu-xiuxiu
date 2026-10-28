@@ -123,6 +123,7 @@ fn main() -> eframe::Result {
             max_edge: args.max_edge.filter(|value| *value > 0),
             suffix,
             overwrite: args.overwrite || args.preset.is_none(),
+            cancel: None,
         };
         match xuan::batch::run_batch(options) {
             Ok(report) => {
