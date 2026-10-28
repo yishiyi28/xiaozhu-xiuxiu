@@ -25,6 +25,8 @@ else
     install -Dm644 "$xuan_root/THIRD_PARTY.md" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/THIRD_PARTY.md"
     install -Dm644 "$xuan_root/licenses/rawler-LGPL-2.1.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/rawler-LGPL-2.1.txt"
     install -Dm644 "$xuan_root/licenses/tabler-icons-MIT.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/tabler-icons-MIT.txt"
+    install -Dm644 "$xuan_root/licenses/mediapipe-apache-2.0.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/mediapipe-apache-2.0.txt"
+    install -Dm644 "$xuan_root/licenses/mediapipe-onnx-models.md" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/mediapipe-onnx-models.md"
     install -Dm644 "$xuan_root/assets/fonts/Inter-LICENSE.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/Inter-LICENSE.txt"
     install -Dm644 "$xuan_root/assets/fonts/DroidSansFallback-LICENSE.txt" "$xuan_prefix/share/licenses/xiaozhu-xiuxiu/DroidSansFallback-LICENSE.txt"
     for xuan_license in LICENSE-MIT LICENSE-APACHE; do

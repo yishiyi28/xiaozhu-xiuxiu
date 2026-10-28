@@ -40,6 +40,8 @@ install -Dm644 LICENSE "$xuan_licenses/LICENSE"
 install -m644 licenses/rawler-LGPL-2.1.txt "$xuan_licenses/"
 install -m644 licenses/heic-rs-MIT.txt "$xuan_licenses/"
 install -m644 licenses/tabler-icons-MIT.txt "$xuan_licenses/"
+install -m644 licenses/mediapipe-apache-2.0.txt "$xuan_licenses/"
+install -m644 licenses/mediapipe-onnx-models.md "$xuan_licenses/"
 install -m644 assets/fonts/Inter-LICENSE.txt "$xuan_licenses/"
 install -m644 assets/fonts/DroidSansFallback-LICENSE.txt "$xuan_licenses/"
 for xuan_license in LICENSE-MIT LICENSE-APACHE; do
