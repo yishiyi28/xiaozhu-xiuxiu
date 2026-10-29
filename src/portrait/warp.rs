@@ -32,6 +32,22 @@ impl WarpGrid {
         self.size
     }
 
+    pub fn cell_size(&self) -> f32 {
+        self.cell_size
+    }
+
+    pub fn cols(&self) -> usize {
+        self.cols
+    }
+
+    pub fn rows(&self) -> usize {
+        self.rows
+    }
+
+    pub fn displacements(&self) -> &[[f32; 2]] {
+        &self.displacements
+    }
+
     pub fn displacement_at(&self, point: [f32; 2]) -> [f32; 2] {
         let gx = (point[0] / self.cell_size).clamp(0.0, (self.cols - 1) as f32);
         let gy = (point[1] / self.cell_size).clamp(0.0, (self.rows - 1) as f32);
@@ -169,6 +185,11 @@ pub fn apply_liquify_many(
             }
         }
     }
+    if let Some(processor) = crate::gpu::current()
+        && let Some(result) = crate::gpu::apply_warp(&processor, source, &grid)
+    {
+        return Ok(result);
+    }
     Ok(apply_warp(source, &grid))
 }
 
@@ -190,6 +211,20 @@ pub fn apply_face_shape(
     {
         return Ok(source.clone());
     }
+    let grid = build_face_shape_grid(source, landmarks, settings)?;
+    if let Some(processor) = crate::gpu::current()
+        && let Some(result) = crate::gpu::apply_warp(&processor, source, &grid)
+    {
+        return Ok(result);
+    }
+    Ok(apply_warp(source, &grid))
+}
+
+fn build_face_shape_grid(
+    source: &RgbaImage,
+    landmarks: &FaceLandmarks,
+    settings: &PortraitSettings,
+) -> Result<WarpGrid> {
     if landmarks.points.len() != 478 {
         anyhow::bail!(
             "Face landmarks contain {} points, expected 478",
@@ -245,7 +280,7 @@ pub fn apply_face_shape(
             grid.add_radial(point.position, eye_radius, eye_amount, 1.0);
         }
     }
-    Ok(apply_warp(source, &grid))
+    Ok(grid)
 }
 
 fn apply_warp(source: &RgbaImage, grid: &WarpGrid) -> RgbaImage {

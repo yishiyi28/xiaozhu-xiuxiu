@@ -9,6 +9,8 @@ mod motion_blur;
 mod paint;
 mod portrait;
 pub(crate) use portrait::apply as apply_portrait;
+mod warp;
+pub(crate) use warp::apply as apply_warp;
 mod processor;
 mod raster;
 mod raw;

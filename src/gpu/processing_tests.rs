@@ -134,6 +134,22 @@ fn processing_portrait_matches_cpu() {
 
 #[test]
 #[ignore = "requires native compute adapter"]
+fn processing_portrait_warp_matches_cpu() {
+    let gpu = processor();
+    let source = fixture(64, 64);
+    let grid = crate::portrait::warp::WarpGrid::identity([64, 64], 16);
+    let stroke =
+        crate::portrait::warp::LiquifyStroke::push([32.0, 32.0], [8.0, -3.0], 22.0, 80.0, 60.0);
+    let actual = scope(Some(gpu.clone()), || {
+        crate::portrait::warp::apply_liquify(&source, &grid, stroke)
+    })
+    .unwrap();
+    let expected = crate::portrait::warp::apply_liquify(&source, &grid, stroke).unwrap();
+    compare(&actual, &expected, 2);
+}
+
+#[test]
+#[ignore = "requires native compute adapter"]
 fn processing_adjustments_and_composition_match_cpu() {
     let gpu = processor();
     let source = fixture(71, 53);

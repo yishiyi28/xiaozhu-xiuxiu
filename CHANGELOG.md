@@ -1,5 +1,13 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.6
+
+- Add a GPU warp pass for portrait face shaping and manual liquify.
+- Keep warp-grid construction on the CPU for deterministic landmark and brush behavior, while moving per-pixel displacement interpolation and bilinear sampling to the GPU.
+- Preserve edge clamping and transparent-pixel handling in the GPU warp shader.
+- Fall back to the CPU warp implementation when no GPU context or pipeline is available.
+- Add GPU/CPU parity coverage for liquify warping.
+
 ## 0.6.5
 
 - Add a native GPU portrait retouch pass for skin smoothing, texture, tone, blemish reduction, eye enhancement, dark circles, teeth whitening and lip tint.

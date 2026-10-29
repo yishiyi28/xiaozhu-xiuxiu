@@ -316,6 +316,9 @@ pub(crate) fn render16(document: &Document) -> Rgba16Image {
 pub(crate) fn render_scaled16(document: &Document, width: u32, height: u32) -> Rgba16Image {
     let prepared = prepare_attachments(document);
     let prepared = prepared.as_ref();
+    // Portrait layers currently use a GPU color/warp pass around CPU
+    // compositing. Keep the full document on that path until the compositor
+    // can consume the portrait recipe directly.
     if !prepared.layers.iter().any(|layer| layer.portrait.is_some())
         && let Some(result) = crate::gpu::compose16(prepared, width, height)
     {
