@@ -1,11 +1,18 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.8
+
+- Complete the GPU portrait-layer compositing path for runtime masks, including face reshaping and manual liquify.
+- Compose portrait color, GPU warp, blur, layer opacity, coverage and blending without an intermediate CPU readback for supported previews and exports.
+- Preserve CPU fallback for legacy projects whose runtime masks are not available.
+- Add GPU/CPU parity coverage for portrait composition with smoothing, reshaping and liquify.
+
 ## 0.6.7
 
 - Move color-only portrait adjustment layers into the native GPU compositor instead of returning the full document to CPU compositing.
 - Upload adaptive face masks and portrait settings as GPU resources, apply them to the resident composite texture, and preserve layer opacity, coverage and blending.
 - Reuse GPU Gaussian filtering for portrait skin and eye detail during composition.
-- Keep CPU fallback for portrait layers that contain face reshaping, liquify strokes, missing runtime masks or legacy project data.
+- Keep CPU fallback for portrait layers with missing runtime masks, legacy project data or unsupported GPU conditions.
 - Add ignored GPU/CPU parity coverage for full portrait-layer composition.
 
 ## 0.6.6

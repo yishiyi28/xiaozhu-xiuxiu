@@ -14,21 +14,31 @@ pub(super) struct PortraitLayers {
     high_scratch: wgpu::Texture,
     layout: wgpu::BindGroupLayout,
     high_layout: wgpu::BindGroupLayout,
+    warp_pipeline: wgpu::ComputePipeline,
+    high_warp_pipeline: wgpu::ComputePipeline,
+    warp_layout: wgpu::BindGroupLayout,
+    high_warp_layout: wgpu::BindGroupLayout,
 }
 
 impl PortraitLayers {
     pub(super) fn new(device: &wgpu::Device, size: [u32; 2]) -> Self {
         let layout = make_layout(device, wgpu::TextureFormat::Rgba8Unorm);
         let high_layout = make_layout(device, wgpu::TextureFormat::Rgba32Float);
+        let warp_layout = make_warp_layout(device, wgpu::TextureFormat::Rgba8Unorm);
+        let high_warp_layout = make_warp_layout(device, wgpu::TextureFormat::Rgba32Float);
         Self {
             pipeline: pipeline(device, "rgba8unorm", &layout),
             high_pipeline: pipeline(device, "rgba32float", &high_layout),
+            warp_pipeline: warp_pipeline(device, "rgba8unorm", &warp_layout),
+            high_warp_pipeline: warp_pipeline(device, "rgba32float", &high_warp_layout),
             output: target(device, size, wgpu::TextureFormat::Rgba8Unorm, 1),
             high_output: target(device, size, wgpu::TextureFormat::Rgba32Float, 1),
             scratch: target(device, size, wgpu::TextureFormat::Rgba8Unorm, 1),
             high_scratch: target(device, size, wgpu::TextureFormat::Rgba32Float, 1),
             layout,
             high_layout,
+            warp_layout,
+            high_warp_layout,
         }
     }
 
@@ -105,6 +115,55 @@ impl PortraitLayers {
             );
             current = target_texture;
             use_first = !use_first;
+        }
+        if recipe.needs_warp() {
+            let scaled = recipe.scaled(size);
+            let grid = crate::portrait::warp::build_portrait_warp_grid(
+                size,
+                &scaled.faces,
+                &scaled.settings,
+                &scaled.liquify,
+            )
+            .ok()?;
+            let grid_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("xuan portrait warp grid"),
+                contents: bytemuck::cast_slice(grid.displacements()),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+            let config_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("xuan portrait warp config"),
+                contents: bytemuck::cast_slice(&[
+                    [
+                        size[0] as f32,
+                        size[1] as f32,
+                        grid.cell_size(),
+                        grid.cols() as f32,
+                    ],
+                    [grid.rows() as f32, 0.0, 0.0, 0.0],
+                ]),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+            let target_texture = if std::ptr::eq(current, first) {
+                second
+            } else {
+                first
+            };
+            let (warp_pipe, warp_layout) = if high {
+                (&self.high_warp_pipeline, &self.high_warp_layout)
+            } else {
+                (&self.warp_pipeline, &self.warp_layout)
+            };
+            dispatch_warp(
+                device,
+                encoder,
+                warp_pipe,
+                warp_layout,
+                current,
+                &grid_buffer,
+                target_texture,
+                &config_buffer,
+            );
+            current = target_texture;
         }
         Some(current.clone())
     }
@@ -299,6 +358,126 @@ fn dispatch(
     });
     let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
         label: Some("xuan portrait texture pass"),
+        timestamp_writes: None,
+    });
+    pass.set_pipeline(pipeline);
+    pass.set_bind_group(0, &bind_group, &[]);
+    pass.dispatch_workgroups(source.width().div_ceil(8), source.height().div_ceil(8), 1);
+}
+
+fn make_warp_layout(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("xuan portrait texture warp layout"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::StorageTexture {
+                    access: wgpu::StorageTextureAccess::WriteOnly,
+                    format,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    })
+}
+
+fn warp_pipeline(
+    device: &wgpu::Device,
+    format: &str,
+    layout: &wgpu::BindGroupLayout,
+) -> wgpu::ComputePipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("xuan portrait texture warp"),
+        source: wgpu::ShaderSource::Wgsl(
+            include_str!("warp_texture.wgsl")
+                .replace("OUTPUT_FORMAT", format)
+                .into(),
+        ),
+    });
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("xuan portrait texture warp pipeline layout"),
+        bind_group_layouts: &[layout],
+        push_constant_ranges: &[],
+    });
+    device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("xuan portrait texture warp pipeline"),
+        layout: Some(&pipeline_layout),
+        module: &shader,
+        entry_point: Some("warp_texture"),
+        compilation_options: Default::default(),
+        cache: None,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn dispatch_warp(
+    device: &wgpu::Device,
+    encoder: &mut wgpu::CommandEncoder,
+    pipeline: &wgpu::ComputePipeline,
+    layout: &wgpu::BindGroupLayout,
+    source: &wgpu::Texture,
+    grid: &wgpu::Buffer,
+    output: &wgpu::Texture,
+    config: &wgpu::Buffer,
+) {
+    let source_view = source.create_view(&Default::default());
+    let output_view = output.create_view(&Default::default());
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("xuan portrait texture warp bind group"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&source_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: grid.as_entire_binding(),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(&output_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: config.as_entire_binding(),
+            },
+        ],
+    });
+    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+        label: Some("xuan portrait texture warp pass"),
         timestamp_writes: None,
     });
     pass.set_pipeline(pipeline);

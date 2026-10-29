@@ -88,6 +88,16 @@ impl WarpGrid {
         }
     }
 
+    fn add_from(&mut self, other: &Self) {
+        if self.size != other.size || self.cell_size != other.cell_size {
+            return;
+        }
+        for (target, value) in self.displacements.iter_mut().zip(&other.displacements) {
+            target[0] += value[0];
+            target[1] += value[1];
+        }
+    }
+
     fn add_radial(&mut self, center: [f32; 2], radius: f32, amount: f32, strength: f32) {
         for row in 0..self.rows {
             for col in 0..self.cols {
@@ -157,6 +167,32 @@ pub fn apply_liquify(
     apply_liquify_many(source, grid, &[stroke])
 }
 
+pub(crate) fn build_liquify_grid(size: [u32; 2], strokes: &[LiquifyStroke]) -> WarpGrid {
+    let cell = (size[0].min(size[1]) / 32).clamp(8, 64);
+    let mut grid = WarpGrid::identity(size, cell);
+    for stroke in strokes {
+        let radius = (stroke.brush.diameter * 0.5).max(1.0);
+        let hardness = (stroke.brush.hardness / 100.0).clamp(0.0, 1.0);
+        let strength = ((stroke.brush.strength / 100.0) * (0.5 + hardness * 0.5)).clamp(0.0, 1.0);
+        match stroke.brush.mode {
+            LiquifyMode::Push => {
+                let delta = [stroke.to[0] - stroke.from[0], stroke.to[1] - stroke.from[1]];
+                grid.add_displacement(stroke.from, radius, delta, strength);
+            }
+            LiquifyMode::Pinch | LiquifyMode::Bloat => {
+                let amount = radius * 0.25 * strength;
+                let signed = if stroke.brush.mode == LiquifyMode::Pinch {
+                    -amount
+                } else {
+                    amount
+                };
+                grid.add_radial(stroke.from, radius, signed, strength);
+            }
+        }
+    }
+    grid
+}
+
 /// Compose several liquify strokes into one grid before sampling the source.
 /// This avoids re-warping the entire preview once per mouse/pen segment.
 pub fn apply_liquify_many(
@@ -220,8 +256,8 @@ pub fn apply_face_shape(
     Ok(apply_warp(source, &grid))
 }
 
-fn build_face_shape_grid(
-    source: &RgbaImage,
+fn build_face_shape_grid_for_size(
+    size: [u32; 2],
     landmarks: &FaceLandmarks,
     settings: &PortraitSettings,
 ) -> Result<WarpGrid> {
@@ -231,8 +267,8 @@ fn build_face_shape_grid(
             landmarks.points.len()
         );
     }
-    let cell = (source.width().min(source.height()) / 32).clamp(8, 64);
-    let mut grid = WarpGrid::identity([source.width(), source.height()], cell);
+    let cell = (size[0].min(size[1]) / 32).clamp(8, 64);
+    let mut grid = WarpGrid::identity(size, cell);
     let face_width = landmarks.face.rect[2].max(1.0);
     let face_height = landmarks.face.rect[3].max(1.0);
     let radius = face_width * 0.22;
@@ -280,6 +316,31 @@ fn build_face_shape_grid(
             grid.add_radial(point.position, eye_radius, eye_amount, 1.0);
         }
     }
+    Ok(grid)
+}
+
+fn build_face_shape_grid(
+    source: &RgbaImage,
+    landmarks: &FaceLandmarks,
+    settings: &PortraitSettings,
+) -> Result<WarpGrid> {
+    build_face_shape_grid_for_size([source.width(), source.height()], landmarks, settings)
+}
+
+pub(crate) fn build_portrait_warp_grid(
+    size: [u32; 2],
+    faces: &[FaceLandmarks],
+    settings: &[PortraitSettings],
+    strokes: &[LiquifyStroke],
+) -> Result<WarpGrid> {
+    let cell = (size[0].min(size[1]) / 32).clamp(8, 64);
+    let mut grid = WarpGrid::identity(size, cell);
+    for (face, settings) in faces.iter().zip(settings) {
+        let face_grid = build_face_shape_grid_for_size(size, face, settings)?;
+        grid.add_from(&face_grid);
+    }
+    let liquify = build_liquify_grid(size, strokes);
+    grid.add_from(&liquify);
     Ok(grid)
 }
 

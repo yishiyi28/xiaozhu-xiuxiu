@@ -316,9 +316,9 @@ pub(crate) fn render16(document: &Document) -> Rgba16Image {
 pub(crate) fn render_scaled16(document: &Document, width: u32, height: u32) -> Rgba16Image {
     let prepared = prepare_attachments(document);
     let prepared = prepared.as_ref();
-    // Portrait layers without geometric recipes can be consumed directly by
-    // the GPU compositor. Recipes with reshape/liquify still use the CPU
-    // reference compositor until their mask-aware texture path is complete.
+    // Portrait layers with runtime masks can be consumed directly by the GPU
+    // compositor, including shape and liquify passes. Legacy layers without
+    // runtime masks continue through the CPU portrait path.
     let portrait_gpu_compatible = prepared
         .layers
         .iter()

@@ -185,11 +185,18 @@ fn processing_composite_portrait_layer_matches_cpu() {
             skin_smooth: 20.0,
             skin_tone: 20.0,
             blemish: 10.0,
+            face_width: 20.0,
             ..Default::default()
         }],
         selected: 0,
         apply_to_all: false,
-        liquify: Vec::new(),
+        liquify: vec![crate::portrait::warp::LiquifyStroke::push(
+            [64.0, 64.0],
+            [52.0, 64.0],
+            28.0,
+            70.0,
+            60.0,
+        )],
         masks: Some(vec![masks]),
     };
     let base = Layer::from_storage("Photo", crate::document::PixelStorage::from_rgba8(source));

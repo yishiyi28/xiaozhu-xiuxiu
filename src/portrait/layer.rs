@@ -61,12 +61,13 @@ impl PortraitAdjustment {
     }
 
     pub fn gpu_compatible(&self) -> bool {
-        self.liquify.is_empty()
-            && self.settings.iter().all(|settings| !has_reshape(settings))
-            && self
-                .masks
-                .as_ref()
-                .is_some_and(|masks| masks.len() == self.faces.len())
+        self.masks
+            .as_ref()
+            .is_some_and(|masks| masks.len() == self.faces.len())
+    }
+
+    pub fn needs_warp(&self) -> bool {
+        !self.liquify.is_empty() || self.settings.iter().any(has_reshape)
     }
 
     pub fn scaled(&self, target: [u32; 2]) -> Self {
