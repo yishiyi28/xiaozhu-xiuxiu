@@ -1,5 +1,12 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.4
+
+- Add an adaptive skin-colour model estimated from each detected face instead of relying only on fixed YCbCr thresholds.
+- Preserve deep skin tones and warm or mixed lighting more reliably while reducing false skin coverage on hair and backgrounds.
+- Keep the feathered face and feature masks intact while applying confidence-weighted skin masking.
+- Add regression coverage for adaptive skin classification.
+
 ## 0.6.3
 
 - Add persistent preset favorites and a recent-preset list, with quick access sections in the preset manager.

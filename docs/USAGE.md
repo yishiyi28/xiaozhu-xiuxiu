@@ -172,7 +172,7 @@ The preview supports a manual liquify brush: choose Push, Pinch or Bloat, set si
 
 Presets contain color grade and portrait settings. Apply a built-in preset from **File → Presets**, or use **Manage Presets…** to import/export `.xzp` files. User presets are stored under `%APPDATA%\xiaozhu-xiuxiu\presets\` on Windows or the matching XDG configuration directory on Linux. The manager remembers favorites and recent presets, shows a color-aware swatch, and lets user presets be renamed or deleted. Imports can skip, overwrite, or automatically rename conflicting preset files. Applying a preset is one history transaction; invalid files are rejected without changing the document.
 
-Portrait analysis is local-only. Photos, landmarks and presets are never uploaded. RAW batch processing and automatic body landmarks are not part of 0.6.2; use manual liquify for body adjustments.
+Portrait masks adapt their skin-colour model to each detected face, which helps with deep skin tones, warm lighting and mixed backgrounds. Portrait analysis is local-only. Photos, landmarks and presets are never uploaded. RAW batch processing and automatic body landmarks are not part of 0.6.2; use manual liquify for body adjustments.
 
 ### Batch export
 

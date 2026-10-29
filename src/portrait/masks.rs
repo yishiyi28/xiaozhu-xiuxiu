@@ -76,14 +76,21 @@ pub fn build_portrait_masks(
     let nose = nose_polygon(&regions);
     excluded = union_masks(&excluded, &rasterize_polygon(size, &nose, 1.0));
     let mut skin = subtract_mask(&face, &excluded);
+    let skin_model = estimate_skin_model(image, &face, &excluded);
     for (x, y, pixel) in image.enumerate_pixels() {
         if x >= size[0] || y >= size[1] {
             continue;
         }
         let current = skin.get_pixel(x, y)[0];
-        if current == 0 || pixel[3] == 0 || !is_skin_like(pixel.0) {
-            skin.put_pixel(x, y, Luma([0]));
+        if current == 0 || pixel[3] == 0 {
+            continue;
         }
+        let confidence = skin_model.map_or_else(
+            || u8::from(is_skin_like(pixel.0)) * 255,
+            |model| adaptive_skin_value(pixel.0, model),
+        );
+        let filtered = (u16::from(current) * u16::from(confidence) / 255) as u8;
+        skin.put_pixel(x, y, Luma([filtered]));
     }
     Ok(PortraitMasks {
         face,
@@ -146,6 +153,82 @@ fn bounds_height(points: &[[f32; 2]]) -> f32 {
         max = max.max(point[1]);
     }
     (max - min).max(1.0)
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SkinModel {
+    luma: f32,
+    cb: f32,
+    cr: f32,
+    luma_radius: f32,
+    cb_radius: f32,
+    cr_radius: f32,
+}
+
+fn ycbcr(rgb: [u8; 4]) -> [f32; 3] {
+    let r = rgb[0] as f32;
+    let g = rgb[1] as f32;
+    let b = rgb[2] as f32;
+    let y = 0.299 * r + 0.587 * g + 0.114 * b;
+    let cb = 128.0 - 0.168_736 * r - 0.331_264 * g + 0.5 * b;
+    let cr = 128.0 + 0.5 * r - 0.418_688 * g - 0.081_312 * b;
+    [y, cb, cr]
+}
+
+fn adaptive_skin_value(rgb: [u8; 4], model: SkinModel) -> u8 {
+    let [luma, cb, cr] = ycbcr(rgb);
+    let dl = (luma - model.luma) / model.luma_radius.max(1.0);
+    let dcb = (cb - model.cb) / model.cb_radius.max(1.0);
+    let dcr = (cr - model.cr) / model.cr_radius.max(1.0);
+    let distance = (dcb * dcb + dcr * dcr + dl * dl * 0.35).sqrt();
+    let score = (1.0 - distance).clamp(0.0, 1.0);
+    let smooth = score * score * (3.0 - 2.0 * score);
+    (smooth * 255.0).round().clamp(0.0, 255.0) as u8
+}
+
+fn estimate_skin_model(
+    image: &RgbaImage,
+    face: &GrayImage,
+    excluded: &GrayImage,
+) -> Option<SkinModel> {
+    let mut count = 0u32;
+    let mut sums = [0.0f64; 3];
+    let mut squares = [0.0f64; 3];
+    for (x, y, pixel) in image.enumerate_pixels() {
+        if x >= face.width() || y >= face.height() || face.get_pixel(x, y)[0] <= 128 {
+            continue;
+        }
+        if excluded.get_pixel(x, y)[0] > 32 || pixel[3] == 0 {
+            continue;
+        }
+        let sample = ycbcr(pixel.0);
+        if !(12.0..=245.0).contains(&sample[0])
+            || !(60.0..=155.0).contains(&sample[1])
+            || !(112.0..=210.0).contains(&sample[2])
+        {
+            continue;
+        }
+        count += 1;
+        for channel in 0..3 {
+            let value = sample[channel] as f64;
+            sums[channel] += value;
+            squares[channel] += value * value;
+        }
+    }
+    if count < 16 {
+        return None;
+    }
+    let mean = sums.map(|sum| sum / count as f64);
+    let variance =
+        |channel: usize| (squares[channel] / count as f64 - mean[channel].powi(2)).max(0.0);
+    Some(SkinModel {
+        luma: mean[0] as f32,
+        cb: mean[1] as f32,
+        cr: mean[2] as f32,
+        luma_radius: (variance(0).sqrt() as f32 * 2.0).clamp(45.0, 110.0),
+        cb_radius: (variance(1).sqrt() as f32 * 2.5).clamp(14.0, 35.0),
+        cr_radius: (variance(2).sqrt() as f32 * 2.5).clamp(14.0, 35.0),
+    })
 }
 
 fn is_skin_like(rgb: [u8; 4]) -> bool {
@@ -221,6 +304,20 @@ mod tests {
         assert!(masks.skin.get_pixel(100, 100)[0] > 0);
         assert_eq!(masks.skin.get_pixel(80, 100)[0], 0);
         assert_eq!(masks.skin.get_pixel(120, 100)[0], 0);
+    }
+
+    #[test]
+    fn adaptive_skin_score_accepts_dark_skin_and_rejects_green_background() {
+        let model = SkinModel {
+            luma: 68.0,
+            cb: 108.0,
+            cr: 145.0,
+            luma_radius: 70.0,
+            cb_radius: 18.0,
+            cr_radius: 18.0,
+        };
+        assert!(adaptive_skin_value([92, 58, 44, 255], model) > 128);
+        assert_eq!(adaptive_skin_value([30, 120, 20, 255], model), 0);
     }
 
     #[test]
