@@ -44,6 +44,7 @@ pub struct Processor {
     pub(super) device: wgpu::Device,
     pub(super) queue: wgpu::Queue,
     pub(crate) motion_blur: super::GpuMotionBlur,
+    pub(super) portrait: Mutex<Option<super::portrait::PortraitPipeline>>,
     layout: wgpu::BindGroupLayout,
     pipelines: Mutex<HashMap<&'static str, wgpu::ComputePipeline>>,
     pub(super) compositor: Mutex<Option<super::GpuCompositor>>,
@@ -116,6 +117,7 @@ impl Processor {
         let motion_blur = super::GpuMotionBlur::new(device.clone(), queue.clone());
         Arc::new(Self {
             motion_blur,
+            portrait: Mutex::new(None),
             device,
             queue,
             layout,

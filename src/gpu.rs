@@ -7,6 +7,8 @@ pub use analysis::{Analysis, analyze};
 pub(crate) use coverage::{CoverageMode, bake_alpha, bake_mask, coverage_image};
 mod motion_blur;
 mod paint;
+mod portrait;
+pub(crate) use portrait::apply as apply_portrait;
 mod processor;
 mod raster;
 mod raw;

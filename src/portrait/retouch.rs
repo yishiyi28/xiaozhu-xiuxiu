@@ -125,6 +125,12 @@ pub fn apply_portrait_to_rgba8(
     if settings.is_retouch_identity() {
         return Ok(());
     }
+    if let Some(processor) = crate::gpu::current()
+        && let Some(result) = crate::gpu::apply_portrait(&processor, source, masks, settings)
+    {
+        output.copy_from_slice(&result);
+        return Ok(());
+    }
     let radius = (1.0 + settings.skin_smooth / 18.0).round() as u32;
     let blurred = blur_rgb(source, radius);
     let average = skin_average(source, &masks.skin);

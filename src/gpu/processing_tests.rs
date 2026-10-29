@@ -1,5 +1,5 @@
 use super::*;
-use image::{Rgba, RgbaImage};
+use image::{GrayImage, Luma, Rgba, RgbaImage};
 
 fn processor() -> Arc<Processor> {
     let instance = wgpu::Instance::new(&Default::default());
@@ -93,6 +93,43 @@ fn processing_filters_and_resampling_match_cpu() {
         });
         compare(&actual, &crate::effects::filtered(&source, &filter), 1);
     }
+}
+
+#[test]
+#[ignore = "requires native compute adapter"]
+fn processing_portrait_matches_cpu() {
+    let gpu = processor();
+    let source = fixture(128, 128);
+    let full = GrayImage::from_pixel(128, 128, Luma([255]));
+    let masks = crate::portrait::masks::PortraitMasks {
+        face: full.clone(),
+        skin: full.clone(),
+        eyes: GrayImage::new(128, 128),
+        brows: GrayImage::new(128, 128),
+        lips: GrayImage::new(128, 128),
+        teeth: GrayImage::new(128, 128),
+    };
+    let settings = crate::portrait::retouch::PortraitSettings {
+        skin_smooth: 0.0,
+        skin_texture: 0.0,
+        skin_tone: 15.0,
+        blemish: 0.0,
+        eye_brightness: 20.0,
+        eye_clarity: 0.0,
+        dark_circles: 20.0,
+        teeth_whiten: 20.0,
+        lip_tint: 20.0,
+        lip_color: [210, 60, 80, 255],
+        ..Default::default()
+    };
+    let actual = scope(Some(gpu.clone()), || {
+        super::apply_portrait(&gpu, &source, &masks, &settings)
+    })
+    .unwrap();
+    let mut expected = source.clone();
+    crate::portrait::retouch::apply_portrait_to_rgba8(&source, &mut expected, &masks, &settings)
+        .unwrap();
+    compare(&actual, &expected, 4);
 }
 
 #[test]

@@ -1,5 +1,12 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.5
+
+- Add a native GPU portrait retouch pass for skin smoothing, texture, tone, blemish reduction, eye enhancement, dark circles, teeth whitening and lip tint.
+- Use the existing GPU separable blur pipeline for skin and eye detail before the portrait color pass.
+- Keep the CPU portrait implementation as the fallback for small images, missing GPU context, unsupported adapters and shader failures.
+- Add an ignored GPU/CPU parity test for the portrait shader.
+
 ## 0.6.4
 
 - Add an adaptive skin-colour model estimated from each detected face instead of relying only on fixed YCbCr thresholds.
