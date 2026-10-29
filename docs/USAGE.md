@@ -182,7 +182,7 @@ Use **File → Batch Export…** or the CLI:
 xiaozhu-xiuxiu --batch .\photos --out .\output --preset .\look.xzp --format jpeg --quality 92 --max-edge 2048 --suffix _edit
 ```
 
-Add `--recursive` to include subdirectories. Existing outputs can be skipped, replaced with `--overwrite`, or automatically numbered with `--auto-number`. With a preset, the default suffix is `_xiaozhu`; without `--preset`, the original batch behavior is preserved. Batch failures are reported per file and do not stop the remaining images.
+Add `--recursive` to include subdirectories. Existing outputs can be skipped, replaced with `--overwrite`, or automatically numbered with `--auto-number`. With a preset, the default suffix is `_xiaozhu`; without `--preset`, the original batch behavior is preserved. Batch failures are reported per file and do not stop the remaining images. Imported image files are selected automatically so portrait presets can run without an extra manual selection.
 
 ## Files and export
 

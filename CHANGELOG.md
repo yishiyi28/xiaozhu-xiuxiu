@@ -1,5 +1,11 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.6.9
+
+- Fix batch processing of ordinary image files so the imported image layer becomes active before a portrait preset analyzes it.
+- Restore batch portrait presets on JPEG, PNG, TIFF, WebP, BMP, GIF and HEIF inputs.
+- Add a regression test ensuring loaded batch images expose an active pixel layer.
+
 ## 0.6.8
 
 - Complete the GPU portrait-layer compositing path for runtime masks, including face reshaping and manual liquify.
