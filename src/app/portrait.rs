@@ -488,7 +488,9 @@ impl EditorApp {
                 selected: workspace.selected,
                 apply_to_all: workspace.apply_to_all,
                 liquify,
-            };
+                masks: None,
+            }
+            .with_masks(&workspace.source)?;
             if let Some(id) = workspace.editing_layer {
                 let layer = document
                     .layers
@@ -1076,6 +1078,7 @@ mod tests {
             selected: 0,
             apply_to_all: false,
             liquify: Vec::new(),
+            masks: None,
         });
         let id = portrait_layer.id;
         session.document.layers.push(portrait_layer);

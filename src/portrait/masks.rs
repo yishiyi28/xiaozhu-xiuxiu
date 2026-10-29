@@ -4,7 +4,7 @@ use image::{GrayImage, Luma, RgbaImage};
 use super::geometry::{FaceRegions, build_face_regions};
 use super::types::FaceLandmarks;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PortraitMasks {
     pub face: GrayImage,
     pub skin: GrayImage,
@@ -12,6 +12,7 @@ pub struct PortraitMasks {
     pub brows: GrayImage,
     pub lips: GrayImage,
     pub teeth: GrayImage,
+    pub skin_average: [f32; 3],
 }
 
 pub fn rasterize_polygon(size: [u32; 2], polygon: &[[f32; 2]], feather: f32) -> GrayImage {
@@ -92,6 +93,7 @@ pub fn build_portrait_masks(
         let filtered = (u16::from(current) * u16::from(confidence) / 255) as u8;
         skin.put_pixel(x, y, Luma([filtered]));
     }
+    let skin_average = average_rgb(image, &skin);
     Ok(PortraitMasks {
         face,
         skin,
@@ -99,6 +101,7 @@ pub fn build_portrait_masks(
         brows,
         lips,
         teeth,
+        skin_average,
     })
 }
 
@@ -229,6 +232,25 @@ fn estimate_skin_model(
         cb_radius: (variance(1).sqrt() as f32 * 2.5).clamp(14.0, 35.0),
         cr_radius: (variance(2).sqrt() as f32 * 2.5).clamp(14.0, 35.0),
     })
+}
+
+fn average_rgb(image: &RgbaImage, mask: &GrayImage) -> [f32; 3] {
+    let mut sum = [0.0; 3];
+    let mut count = 0.0;
+    for (x, y, pixel) in image.enumerate_pixels() {
+        let weight = mask.get_pixel(x, y)[0] as f32 / 255.0;
+        if weight > 0.0 {
+            for channel in 0..3 {
+                sum[channel] += pixel[channel] as f32 * weight;
+            }
+            count += weight;
+        }
+    }
+    if count == 0.0 {
+        [128.0 / 255.0; 3]
+    } else {
+        sum.map(|value| value / count / 255.0)
+    }
 }
 
 fn is_skin_like(rgb: [u8; 4]) -> bool {

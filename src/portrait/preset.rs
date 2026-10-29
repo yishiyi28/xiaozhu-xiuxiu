@@ -421,14 +421,18 @@ pub fn apply_preset_to_document_with_faces(
                 working.width,
                 working.height,
             );
-            portrait_layer.portrait = Some(PortraitAdjustment {
-                source_size,
-                faces: faces.to_vec(),
-                settings: vec![settings.clone(); faces.len()],
-                selected: selected_index,
-                apply_to_all: matches!(face_policy, FacePolicy::AllFaces),
-                liquify: Vec::new(),
-            });
+            portrait_layer.portrait = Some(
+                PortraitAdjustment {
+                    source_size,
+                    faces: faces.to_vec(),
+                    settings: vec![settings.clone(); faces.len()],
+                    selected: selected_index,
+                    apply_to_all: matches!(face_policy, FacePolicy::AllFaces),
+                    liquify: Vec::new(),
+                    masks: None,
+                }
+                .with_masks(storage.rgba8())?,
+            );
             working.insert(portrait_layer);
         }
     }

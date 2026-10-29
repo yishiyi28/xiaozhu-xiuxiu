@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::document::{PixelStorage, Rgba16Image};
 
 use super::{
-    masks::build_portrait_masks,
+    masks::{PortraitMasks, build_portrait_masks},
     retouch::{PortraitSettings, apply_portrait_to_rgba8, apply_portrait_to_rgba16},
     types::FaceLandmarks,
     warp::{LiquifyStroke, WarpGrid, apply_face_shape, apply_liquify_many},
@@ -21,6 +21,8 @@ pub struct PortraitAdjustment {
     pub apply_to_all: bool,
     #[serde(default)]
     pub liquify: Vec<LiquifyStroke>,
+    #[serde(skip)]
+    pub masks: Option<Vec<PortraitMasks>>,
 }
 
 impl PortraitAdjustment {
@@ -45,6 +47,26 @@ impl PortraitAdjustment {
             "Portrait liquify contains non-finite values"
         );
         Ok(())
+    }
+
+    pub fn with_masks(mut self, image: &RgbaImage) -> Result<Self> {
+        let size = [image.width(), image.height()];
+        self.masks = Some(
+            self.faces
+                .iter()
+                .map(|face| build_portrait_masks(image, face, size))
+                .collect::<Result<Vec<_>>>()?,
+        );
+        Ok(self)
+    }
+
+    pub fn gpu_compatible(&self) -> bool {
+        self.liquify.is_empty()
+            && self.settings.iter().all(|settings| !has_reshape(settings))
+            && self
+                .masks
+                .as_ref()
+                .is_some_and(|masks| masks.len() == self.faces.len())
     }
 
     pub fn scaled(&self, target: [u32; 2]) -> Self {
@@ -85,6 +107,7 @@ impl PortraitAdjustment {
             selected: self.selected,
             apply_to_all: self.apply_to_all,
             liquify,
+            masks: self.masks.clone(),
         }
     }
 
@@ -304,6 +327,7 @@ mod tests {
                 80.0,
                 60.0,
             )],
+            masks: None,
         }
     }
 

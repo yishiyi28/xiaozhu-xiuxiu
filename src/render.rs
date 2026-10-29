@@ -316,11 +316,15 @@ pub(crate) fn render16(document: &Document) -> Rgba16Image {
 pub(crate) fn render_scaled16(document: &Document, width: u32, height: u32) -> Rgba16Image {
     let prepared = prepare_attachments(document);
     let prepared = prepared.as_ref();
-    // Portrait layers currently use a GPU color/warp pass around CPU
-    // compositing. Keep the full document on that path until the compositor
-    // can consume the portrait recipe directly.
-    if !prepared.layers.iter().any(|layer| layer.portrait.is_some())
-        && let Some(result) = crate::gpu::compose16(prepared, width, height)
+    // Portrait layers without geometric recipes can be consumed directly by
+    // the GPU compositor. Recipes with reshape/liquify still use the CPU
+    // reference compositor until their mask-aware texture path is complete.
+    let portrait_gpu_compatible = prepared
+        .layers
+        .iter()
+        .filter_map(|layer| layer.portrait.as_ref())
+        .all(crate::portrait::layer::PortraitAdjustment::gpu_compatible);
+    if portrait_gpu_compatible && let Some(result) = crate::gpu::compose16(prepared, width, height)
     {
         return result;
     }
@@ -339,9 +343,12 @@ pub(crate) fn render_scaled16(document: &Document, width: u32, height: u32) -> R
 pub fn render_scaled(document: &Document, width: u32, height: u32) -> RgbaImage {
     let prepared = prepare_attachments(document);
     let document = prepared.as_ref();
-    if !document.layers.iter().any(|layer| layer.portrait.is_some())
-        && let Some(result) = crate::gpu::compose(document, width, height)
-    {
+    let portrait_gpu_compatible = document
+        .layers
+        .iter()
+        .filter_map(|layer| layer.portrait.as_ref())
+        .all(crate::portrait::layer::PortraitAdjustment::gpu_compatible);
+    if portrait_gpu_compatible && let Some(result) = crate::gpu::compose(document, width, height) {
         return result;
     }
     let mut filtered = document.clone();

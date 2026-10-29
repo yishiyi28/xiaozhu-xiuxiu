@@ -9,6 +9,7 @@ mod motion_blur;
 mod paint;
 mod portrait;
 pub(crate) use portrait::apply as apply_portrait;
+mod portrait_layers;
 mod warp;
 pub(crate) use warp::apply as apply_warp;
 mod processor;
@@ -104,6 +105,7 @@ pub struct GpuCompositor {
     blank: wgpu::Texture,
     motion_blur: GpuMotionBlur,
     filter_layers: Option<filter_layers::FilterLayers>,
+    portrait_layers: Option<portrait_layers::PortraitLayers>,
 }
 
 impl GpuCompositor {
@@ -179,6 +181,7 @@ impl GpuCompositor {
             blank,
             motion_blur,
             filter_layers: None,
+            portrait_layers: None,
         }
     }
 
@@ -343,6 +346,7 @@ impl GpuCompositor {
                 && layer.pixels.is_none()
                 && layer.adjustment.is_none()
                 && layer.filter.is_none()
+                && layer.portrait.is_none()
             {
                 continue;
             }
@@ -483,6 +487,59 @@ impl GpuCompositor {
             } else {
                 None
             };
+            if let Some(recipe) = &layer.portrait {
+                let needs_blur = recipe.settings.iter().any(|settings| {
+                    settings.skin_smooth > 0.0
+                        || settings.eye_clarity > 0.0
+                        || settings.blemish > 0.0
+                });
+                let blurred = if needs_blur {
+                    let radius = recipe
+                        .settings
+                        .iter()
+                        .map(|settings| 1.0 + settings.skin_smooth / 18.0)
+                        .fold(1.0_f32, f32::max);
+                    self.filter_layers
+                        .get_or_insert_with(|| filter_layers::FilterLayers::new(&self.device, size))
+                        .render(
+                            &self.device,
+                            &mut encoder,
+                            &buffers[current],
+                            &crate::effects::Filter::GaussianBlur { radius },
+                            filter_high,
+                        )
+                        .clone()
+                } else {
+                    buffers[current].clone()
+                };
+                let portrait_layers = self.portrait_layers.get_or_insert_with(|| {
+                    portrait_layers::PortraitLayers::new(&self.device, size)
+                });
+                let Some(adjusted) = portrait_layers.render(
+                    &self.device,
+                    &self.queue,
+                    &mut encoder,
+                    &buffers[current],
+                    &blurred,
+                    recipe,
+                    high,
+                ) else {
+                    continue;
+                };
+                let mut portrait_params = parameters(document, layer, size);
+                portrait_params.flags[1] = 0;
+                self.dispatch(
+                    &mut encoder,
+                    &buffers,
+                    current,
+                    &adjusted,
+                    coverage.as_ref().unwrap_or(&self.blank),
+                    &portrait_params,
+                    high,
+                );
+                current = 1 - current;
+                continue;
+            }
             let filtered = layer.filter.as_ref().map(|filter| {
                 params.flags[1] = 13;
                 let filter = filter.scaled(size[0] as f32 / document.width as f32);
@@ -891,6 +948,14 @@ impl Processor {
             document
                 .layers
                 .iter()
+                .filter_map(|l| l.portrait.as_ref())
+                .all(crate::portrait::layer::PortraitAdjustment::gpu_compatible),
+            "Portrait layer requires the CPU portrait path"
+        );
+        anyhow::ensure!(
+            document
+                .layers
+                .iter()
                 .filter_map(|l| l.pixels.as_ref())
                 .all(|p| p.width().max(p.height()) <= limits.max_texture_dimension_2d),
             "Layer exceeds GPU texture limits"
@@ -949,6 +1014,14 @@ impl Processor {
         anyhow::ensure!(
             width > 0 && height > 0 && width.max(height) <= limits.max_texture_dimension_2d,
             "Composition exceeds GPU texture limits"
+        );
+        anyhow::ensure!(
+            document
+                .layers
+                .iter()
+                .filter_map(|l| l.portrait.as_ref())
+                .all(crate::portrait::layer::PortraitAdjustment::gpu_compatible),
+            "Portrait layer requires the CPU portrait path"
         );
         anyhow::ensure!(
             document

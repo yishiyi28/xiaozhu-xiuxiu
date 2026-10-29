@@ -35,6 +35,7 @@ pub fn synthetic_masks() -> crate::portrait::masks::PortraitMasks {
         brows: GrayImage::new(width, height),
         lips: GrayImage::new(width, height),
         teeth: GrayImage::new(width, height),
+        skin_average: [128.0 / 255.0; 3],
     }
 }
 

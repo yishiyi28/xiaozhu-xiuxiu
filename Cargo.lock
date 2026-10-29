@@ -5615,7 +5615,7 @@ checksum = "163b33ed8786455e2fa5d72f554057ce3f3182425434f756cd39c99839d88e23"
 
 [[package]]
 name = "xiaozhu-xiuxiu"
-version = "0.6.6"
+version = "0.6.7"
 dependencies = [
  "anyhow",
  "arboard",

@@ -99,7 +99,14 @@ fn processing_filters_and_resampling_match_cpu() {
 #[ignore = "requires native compute adapter"]
 fn processing_portrait_matches_cpu() {
     let gpu = processor();
-    let source = fixture(128, 128);
+    let source = RgbaImage::from_fn(128, 128, |x, y| {
+        Rgba([
+            (x * 3 + y) as u8,
+            (x + y * 5) as u8,
+            (x * 7 + y * 2) as u8,
+            255,
+        ])
+    });
     let full = GrayImage::from_pixel(128, 128, Luma([255]));
     let masks = crate::portrait::masks::PortraitMasks {
         face: full.clone(),
@@ -108,6 +115,7 @@ fn processing_portrait_matches_cpu() {
         brows: GrayImage::new(128, 128),
         lips: GrayImage::new(128, 128),
         teeth: GrayImage::new(128, 128),
+        skin_average: [128.0 / 255.0; 3],
     };
     let settings = crate::portrait::retouch::PortraitSettings {
         skin_smooth: 0.0,
@@ -146,6 +154,52 @@ fn processing_portrait_warp_matches_cpu() {
     .unwrap();
     let expected = crate::portrait::warp::apply_liquify(&source, &grid, stroke).unwrap();
     compare(&actual, &expected, 2);
+}
+
+#[test]
+#[ignore = "requires native compute adapter"]
+fn processing_composite_portrait_layer_matches_cpu() {
+    let gpu = processor();
+    let source = RgbaImage::from_fn(128, 128, |x, y| {
+        Rgba([
+            (x * 3 + y) as u8,
+            (x + y * 5) as u8,
+            (x * 7 + y * 2) as u8,
+            255,
+        ])
+    });
+    let full = GrayImage::from_pixel(128, 128, Luma([255]));
+    let masks = crate::portrait::masks::PortraitMasks {
+        face: full.clone(),
+        skin: full.clone(),
+        eyes: GrayImage::new(128, 128),
+        brows: GrayImage::new(128, 128),
+        lips: GrayImage::new(128, 128),
+        teeth: GrayImage::new(128, 128),
+        skin_average: [128.0 / 255.0; 3],
+    };
+    let recipe = crate::portrait::layer::PortraitAdjustment {
+        source_size: [128, 128],
+        faces: vec![crate::portrait::test_fixtures::synthetic_landmarks()],
+        settings: vec![crate::portrait::retouch::PortraitSettings {
+            skin_smooth: 20.0,
+            skin_tone: 20.0,
+            blemish: 10.0,
+            ..Default::default()
+        }],
+        selected: 0,
+        apply_to_all: false,
+        liquify: Vec::new(),
+        masks: Some(vec![masks]),
+    };
+    let base = Layer::from_storage("Photo", crate::document::PixelStorage::from_rgba8(source));
+    let mut portrait = Layer::blank("Portrait", 128, 128);
+    portrait.portrait = Some(recipe);
+    let mut document = Document::new(128, 128).unwrap();
+    document.layers = vec![base, portrait];
+    let actual = gpu.compose(&document, 128, 128).unwrap();
+    let expected = crate::render::render(&document);
+    compare(&actual, &expected, 48);
 }
 
 #[test]
