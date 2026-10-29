@@ -255,10 +255,13 @@ pub fn load_batch_document(path: &Path) -> Result<Document> {
             let pixels = io::import_pixels(path)?;
             let (width, height) = pixels.rgba8().dimensions();
             let mut document = Document::new(width, height)?;
-            document.layers = vec![Layer::from_storage(
+            let layer = Layer::from_storage(
                 path.file_stem().unwrap_or_default().to_string_lossy(),
                 pixels,
-            )];
+            );
+            let id = layer.id;
+            document.layers = vec![layer];
+            document.select(id, false);
             Ok(document)
         }
     }
@@ -341,6 +344,16 @@ mod tests {
             fs::read(dir.path().join("photo_xiaozhu.png")).unwrap(),
             b"keep"
         );
+    }
+
+    #[test]
+    fn loaded_batch_image_selects_the_imported_layer() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("photo.png");
+        write_png(&path);
+        let document = load_batch_document(&path).unwrap();
+        let active = document.active().expect("active batch layer");
+        assert!(active.pixels.is_some());
     }
 
     #[test]
