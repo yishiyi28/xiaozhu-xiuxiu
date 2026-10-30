@@ -14,6 +14,7 @@ use xuan::{
         inference::PortraitModels,
         layer::PortraitAdjustment,
         masks::build_portrait_masks,
+        preset::PresetV1,
         retouch::{PortraitSettings, apply_portrait_to_rgba8},
         types::FaceLandmarks,
         warp::{
@@ -23,7 +24,7 @@ use xuan::{
     },
 };
 
-use super::{EditorApp, widgets};
+use super::{EditorApp, batch_dialog::BatchDialogState, widgets};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PortraitState {
@@ -531,6 +532,25 @@ impl EditorApp {
             }
         }
     }
+
+    fn open_portrait_batch_sync(&mut self, workspace: &PortraitWorkspace) -> Result<()> {
+        let preset = portrait_sync_preset(workspace)?;
+        let mut dialog = BatchDialogState {
+            preset: Some(preset.clone()),
+            ..Default::default()
+        };
+        if let Some(path) = self
+            .session()
+            .and_then(|session| session.source_path.as_deref().or(session.path.as_deref()))
+            && let Some(parent) = path.parent()
+        {
+            dialog.input = parent.display().to_string();
+            dialog.output = parent.join("xiaozhu-xiuxiu").display().to_string();
+        }
+        self.batch_dialog = Some(dialog);
+        self.status = format!("{}: {}", tr("Sync preset"), preset.name);
+        Ok(())
+    }
 }
 
 impl EditorApp {
@@ -547,6 +567,7 @@ impl EditorApp {
         }
         let mut open = true;
         let mut apply = false;
+        let mut sync_batch = false;
         let mut cancel = false;
         let shift_compare =
             context.input(|input| input.modifiers.shift && input.key_down(egui::Key::P));
@@ -830,7 +851,7 @@ impl EditorApp {
                             tr("Show original (hold Shift+P)"),
                         );
                         ui.separator();
-                        ui.horizontal(|ui| {
+                        ui.horizontal_wrapped(|ui| {
                             if widgets::primary_button(ui, tr("Apply")).clicked() {
                                 apply = true;
                             }
@@ -846,6 +867,19 @@ impl EditorApp {
                             }
                             if reset_liquify {
                                 workspace.invalidate_preview();
+                            }
+                            let can_sync = if workspace.apply_to_all {
+                                workspace
+                                    .settings
+                                    .iter()
+                                    .any(|settings| !settings.is_identity())
+                            } else {
+                                workspace
+                                    .selected_settings()
+                                    .is_some_and(|settings| !settings.is_identity())
+                            };
+                            if can_sync && widgets::button(ui, tr("Sync to folder…")).clicked() {
+                                sync_batch = true;
                             }
                         });
                     } else {
@@ -991,6 +1025,19 @@ impl EditorApp {
                     }
                 }
             });
+        if sync_batch {
+            match self.open_portrait_batch_sync(&workspace) {
+                Ok(()) => {
+                    self.portrait = Some(workspace);
+                    return;
+                }
+                Err(error) => {
+                    self.error = Some(format!("{error:#}"));
+                    self.portrait = Some(workspace);
+                    return;
+                }
+            }
+        }
         if apply {
             match self.apply_portrait_workspace(&workspace) {
                 Ok(()) => return,
@@ -1007,6 +1054,28 @@ impl EditorApp {
         }
         self.portrait = Some(workspace);
     }
+}
+
+fn portrait_sync_preset(workspace: &PortraitWorkspace) -> Result<PresetV1> {
+    let settings = if workspace.apply_to_all {
+        workspace
+            .settings
+            .iter()
+            .find(|settings| !settings.is_identity())
+            .or_else(|| workspace.settings.first())
+    } else {
+        workspace.selected_settings()
+    }
+    .context(tr("No face detected"))?;
+    if settings.is_identity() {
+        anyhow::bail!(tr("Adjust the portrait before syncing it to a folder"));
+    }
+    Ok(PresetV1 {
+        schema_version: 1,
+        name: tr("Synced portrait").into(),
+        color: None,
+        portrait: Some(settings.clone()),
+    })
 }
 
 fn portrait_slider(
@@ -1028,7 +1097,32 @@ fn portrait_slider(
 mod tests {
     use super::*;
     use image::Rgba;
+    use std::path::PathBuf;
     use xuan::document::PixelStorage;
+    use xuan::portrait::types::{DetectedFace, LandmarkPoint};
+
+    fn synthetic_landmarks() -> FaceLandmarks {
+        let points = (0..478)
+            .map(|index| {
+                let angle = index as f32 / 478.0 * std::f32::consts::TAU;
+                LandmarkPoint {
+                    position: [32.0 + angle.cos() * 20.0, 32.0 + angle.sin() * 20.0],
+                    depth: 0.0,
+                }
+            })
+            .collect();
+        FaceLandmarks {
+            face: DetectedFace {
+                id: 1,
+                rect: [8.0, 8.0, 56.0, 56.0],
+                score: 0.99,
+                left_eye: [24.0, 28.0],
+                right_eye: [40.0, 28.0],
+            },
+            points,
+            presence: 0.99,
+        }
+    }
 
     #[test]
     fn no_face_workspace_can_apply_manual_liquify() {
@@ -1100,5 +1194,55 @@ mod tests {
             PortraitWorkspace::from_analysis_with_source(Ok(Vec::new()), source).unwrap();
         app.apply_portrait_workspace(&workspace).unwrap();
         assert_eq!(app.session().unwrap().history.names().count(), 0);
+    }
+
+    #[test]
+    fn portrait_sync_preset_uses_the_selected_face_settings() {
+        let source = RgbaImage::from_pixel(32, 32, Rgba([20, 40, 60, 255]));
+        let mut workspace = PortraitWorkspace::from_analysis_with_source(
+            Ok(vec![synthetic_landmarks(), synthetic_landmarks()]),
+            source,
+        )
+        .unwrap();
+        workspace.settings[0].skin_smooth = 21.0;
+        workspace.settings[1].skin_smooth = 47.0;
+        workspace.selected = 1;
+
+        let preset = portrait_sync_preset(&workspace).unwrap();
+        assert_eq!(preset.name, "Synced portrait");
+        assert_eq!(preset.portrait.unwrap().skin_smooth, 47.0);
+
+        workspace.settings[1] = PortraitSettings::default();
+        assert!(portrait_sync_preset(&workspace).is_err());
+    }
+
+    #[test]
+    fn portrait_sync_opens_a_prefilled_batch_dialog() {
+        let context = egui::Context::default();
+        let mut app = EditorApp::with_context(&context, Vec::new(), false, None);
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/io/fixtures/rgb-strips.heic");
+        app.open_path(&path, false);
+        let source = RgbaImage::from_pixel(32, 32, Rgba([20, 40, 60, 255]));
+        let mut workspace =
+            PortraitWorkspace::from_analysis_with_source(Ok(vec![synthetic_landmarks()]), source)
+                .unwrap();
+        workspace.settings[0].skin_smooth = 36.0;
+
+        app.open_portrait_batch_sync(&workspace).unwrap();
+        let dialog = app.batch_dialog.as_ref().expect("batch dialog");
+        assert_eq!(
+            dialog
+                .preset
+                .as_ref()
+                .unwrap()
+                .portrait
+                .as_ref()
+                .unwrap()
+                .skin_smooth,
+            36.0
+        );
+        assert_eq!(PathBuf::from(&dialog.input), path.parent().unwrap());
+        assert!(dialog.output.ends_with("xiaozhu-xiuxiu"));
     }
 }

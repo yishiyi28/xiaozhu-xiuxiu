@@ -615,6 +615,7 @@ No face detected. Manual liquify is still available.	未检测到人脸，仍可
 Select a face	请选择一张脸
 Batch worker stopped unexpectedly	批量线程意外停止
 Batch Export	批量出片
+Batch export	批量出片
 Input folder	输入目录
 Choose…	选择…
 Output folder	输出目录
@@ -664,3 +665,20 @@ Name	名称
 Rename	重命名
 If preset exists	预设已存在时
 Preset import skipped	已跳过预设导入
+Choose how you want to start.	选择你的开始方式
+Single portrait	单张精修
+Open a portrait and start retouching	打开一张人像，开始精修
+Apply one recipe to a whole folder	用一套配方处理整个文件夹
+Professional edit	专业编辑
+Layers, masks, RAW and manual tools	图层、蒙版、RAW 与手动工具
+One-click portrait templates	一键人像模板
+More ways to begin	更多开始方式
+Everything stays on this computer. No uploads, no account.	全部处理都在本机完成，不上传，也不需要账号。
+Start here	从这里开始
+Open	打开
+Images	图片
+Sync to folder…	同步到整个文件夹…
+Sync preset	同步配方
+Synced portrait	同步人像
+Adjust the portrait before syncing it to a folder	请先调整人像，再同步到文件夹
+Selected preset	当前预设

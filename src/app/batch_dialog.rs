@@ -198,12 +198,14 @@ impl EditorApp {
                         ("mono", tr("Mono")),
                         ("high-contrast-mono", tr("High-contrast Mono")),
                     ] {
+                        let builtin = PresetV1::builtin(slug).ok();
                         let selected = dialog
                             .preset
                             .as_ref()
-                            .is_some_and(|preset| preset.name == name);
+                            .zip(builtin.as_ref())
+                            .is_some_and(|(current, builtin)| current.name == builtin.name);
                         if ui.selectable_label(selected, name).clicked() {
-                            dialog.preset = PresetV1::builtin(slug).ok();
+                            dialog.preset = builtin;
                         }
                     }
                 });
@@ -220,6 +222,9 @@ impl EditorApp {
                             }
                         }
                     });
+                }
+                if let Some(preset) = &dialog.preset {
+                    ui.label(format!("{}: {}", tr("Selected preset"), preset.name));
                 }
                 ui.separator();
                 ui.horizontal(|ui| {

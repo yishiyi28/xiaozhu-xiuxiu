@@ -1,5 +1,5 @@
 use super::widgets;
-use std::{ops::RangeInclusive, sync::Arc};
+use std::{ops::RangeInclusive, path::Path, sync::Arc};
 use xuan::i18n::tr;
 
 use egui::{Color32, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2, pos2, vec2};
@@ -12,7 +12,7 @@ use xuan::{
 };
 
 use super::{
-    EditorApp, Gesture, Tool, TransformDrag,
+    EditorApp, Gesture, Tool, TransformDrag, icons,
     portrait::{PortraitState, PortraitWorkspace},
     theme,
 };
@@ -634,66 +634,178 @@ impl EditorApp {
     }
 
     fn welcome(&mut self, ui: &mut egui::Ui, viewport: Rect) {
-        let width = 500.0_f32.min(viewport.width() - 40.0);
-        let rect = Rect::from_center_size(viewport.center(), vec2(width, 260.0));
-        let mut create = false;
-        let mut open = false;
-        let mut import = false;
-        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-            ui.heading(tr("New canvas"));
-            ui.add_space(6.0);
+        let context = ui.ctx().clone();
+        let layout = welcome_layout(viewport);
+        let mut single = false;
+        let mut batch = false;
+        let mut professional = false;
+        let mut open_project = false;
+        let mut import_image = false;
+        let mut new_canvas = false;
+        let mut template = None;
+        ui.scope_builder(egui::UiBuilder::new().max_rect(layout.rect), |ui| {
+            ui.heading(tr("小猪修修"));
             ui.label(
-                egui::RichText::new(tr("A blank space for your next composition."))
+                egui::RichText::new(tr("Choose how you want to start."))
                     .size(14.0)
                     .color(theme::MUTED),
             );
-            ui.add_space(24.0);
-            egui::Grid::new("welcome_dimensions")
-                .num_columns(3)
-                .min_col_width(0.0)
-                .min_row_height(0.0)
-                .show(ui, |ui| {
-                    ui.label(tr("Width"));
-                    ui.label("");
-                    ui.label(tr("Height"));
-                    ui.end_row();
-
-                    ui.add(
-                        widgets::Number::new(&mut self.dimensions[0])
-                            .size(vec2(180.0, 36.0))
-                            .range(1..=30_000)
-                            .suffix(" px"),
-                    );
-                    ui.label("×");
-                    ui.add(
-                        widgets::Number::new(&mut self.dimensions[1])
-                            .size(vec2(180.0, 36.0))
-                            .range(1..=30_000)
-                            .suffix(" px"),
-                    );
-                    ui.end_row();
+            ui.add_space(if layout.compact { 8.0 } else { 22.0 });
+            if layout.compact {
+                ui.vertical(|ui| {
+                    let actions = [
+                        (
+                            tr("Single portrait"),
+                            tr("Open a portrait and start retouching"),
+                            Tool::Heal,
+                            true,
+                        ),
+                        (
+                            tr("Batch export"),
+                            tr("Apply one recipe to a whole folder"),
+                            Tool::Wand,
+                            false,
+                        ),
+                        (
+                            tr("Professional edit"),
+                            tr("Layers, masks, RAW and manual tools"),
+                            Tool::Brush,
+                            false,
+                        ),
+                    ];
+                    for (index, (title, description, tool, primary)) in
+                        actions.into_iter().enumerate()
+                    {
+                        if index > 0 {
+                            ui.add_space(6.0);
+                        }
+                        let clicked = welcome_action(
+                            ui,
+                            title,
+                            description,
+                            tool,
+                            primary,
+                            layout.card_width,
+                            true,
+                        );
+                        match index {
+                            0 => single = clicked,
+                            1 => batch = clicked,
+                            _ => professional = clicked,
+                        }
+                    }
                 });
-            ui.add_space(15.0);
-            ui.label(egui::RichText::new(tr("Transparent canvas · sRGB")).color(theme::MUTED));
-            ui.add_space(20.0);
+            } else {
+                ui.horizontal(|ui| {
+                    single = welcome_action(
+                        ui,
+                        tr("Single portrait"),
+                        tr("Open a portrait and start retouching"),
+                        Tool::Heal,
+                        true,
+                        layout.card_width,
+                        false,
+                    );
+                    batch = welcome_action(
+                        ui,
+                        tr("Batch export"),
+                        tr("Apply one recipe to a whole folder"),
+                        Tool::Wand,
+                        false,
+                        layout.card_width,
+                        false,
+                    );
+                    professional = welcome_action(
+                        ui,
+                        tr("Professional edit"),
+                        tr("Layers, masks, RAW and manual tools"),
+                        Tool::Brush,
+                        false,
+                        layout.card_width,
+                        false,
+                    );
+                });
+            }
+            ui.add_space(if layout.compact { 10.0 } else { 18.0 });
             ui.horizontal(|ui| {
-                open = widgets::button(ui, tr("Open project")).clicked();
-                import = widgets::button(ui, tr("Import image")).clicked();
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    create = ui
-                        .add(widgets::Button::new(tr("Create canvas")).primary())
-                        .clicked();
-                });
+                ui.label(
+                    egui::RichText::new(tr("One-click portrait templates")).color(theme::MUTED),
+                );
+                for (slug, label) in [
+                    ("natural", tr("Natural")),
+                    ("clear-portrait", tr("Clear Portrait")),
+                    ("warm", tr("Warm")),
+                ] {
+                    if widgets::button(ui, label).clicked() {
+                        template = Some(slug);
+                    }
+                }
             });
+            ui.add_space(if layout.compact { 8.0 } else { 10.0 });
+            ui.separator();
+            ui.add_space(if layout.compact { 5.0 } else { 8.0 });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(tr("More ways to begin")).color(theme::MUTED));
+                open_project = widgets::button(ui, tr("Open project")).clicked();
+                import_image = widgets::button(ui, tr("Import image")).clicked();
+                new_canvas = widgets::button(ui, tr("New canvas")).clicked();
+            });
+            ui.add_space(if layout.compact { 5.0 } else { 8.0 });
+            ui.label(
+                egui::RichText::new(tr(
+                    "Everything stays on this computer. No uploads, no account.",
+                ))
+                .size(11.5)
+                .color(theme::MUTED),
+            );
         });
-        if create {
-            self.new_document();
+        if new_canvas {
+            self.command("new");
         }
-        if open {
+        if open_project {
+            self.command("open");
+        }
+        if import_image {
             self.open_dialog(false);
         }
-        if import {
+        if batch {
+            self.command("batch_export_dialog");
+        }
+        if professional {
             self.open_dialog(false);
+        }
+        if let Some(slug) = template
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter(tr("Images"), WELCOME_IMAGE_EXTENSIONS)
+                .pick_file()
+        {
+            self.apply_welcome_template(&path, slug);
+        }
+        if single
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter(tr("Images"), WELCOME_IMAGE_EXTENSIONS)
+                .pick_file()
+        {
+            self.open_welcome_portrait(&context, &path);
+        }
+    }
+
+    pub(super) fn open_welcome_portrait(&mut self, context: &egui::Context, path: &Path) {
+        let before = self.sessions.len();
+        self.open_path(path, false);
+        if self.sessions.len() > before {
+            self.open_portrait_workspace(context);
+        }
+    }
+
+    pub(super) fn apply_welcome_template(&mut self, path: &Path, slug: &str) {
+        let before = self.sessions.len();
+        self.open_path(path, false);
+        if self.sessions.len() > before {
+            match xuan::portrait::preset::PresetV1::builtin(slug) {
+                Ok(preset) => self.apply_preset(preset),
+                Err(error) => self.error = Some(format!("{error:#}")),
+            }
         }
     }
 
@@ -1479,6 +1591,113 @@ impl EditorApp {
         if tool.is_brush() {
             self.last_brush = Some(end);
         }
+    }
+}
+
+fn welcome_action(
+    ui: &mut egui::Ui,
+    title: &str,
+    description: &str,
+    tool: Tool,
+    primary: bool,
+    width: f32,
+    compact: bool,
+) -> bool {
+    let height = if compact { 60.0 } else { 132.0 };
+    let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
+    let hovered = response.hovered();
+    let fill = if hovered {
+        Color32::from_gray(52)
+    } else {
+        Color32::from_gray(38)
+    };
+    ui.painter().rect(
+        rect,
+        if compact { 9.0 } else { 12.0 },
+        fill,
+        Stroke::new(
+            if primary { 1.4_f32 } else { 1.0_f32 },
+            if primary || hovered {
+                theme::ACCENT.gamma_multiply(0.75)
+            } else {
+                Color32::from_white_alpha(32)
+            },
+        ),
+        StrokeKind::Inside,
+    );
+    let icon_side = if compact { 22.0 } else { 34.0 };
+    let icon_pos = if compact {
+        rect.min + vec2(14.0, (height - icon_side) * 0.5)
+    } else {
+        rect.min + vec2(16.0, 16.0)
+    };
+    let icon_rect = Rect::from_min_size(icon_pos, Vec2::splat(icon_side));
+    icons::draw(ui, tool, icon_rect, theme::TEXT);
+    ui.painter().text(
+        if compact {
+            rect.min + vec2(48.0, 8.0)
+        } else {
+            rect.min + vec2(62.0, 18.0)
+        },
+        egui::Align2::LEFT_TOP,
+        title,
+        egui::FontId::proportional(if compact { 15.0 } else { 17.0 }),
+        theme::TEXT,
+    );
+    ui.painter().text(
+        if compact {
+            rect.min + vec2(48.0, 29.0)
+        } else {
+            rect.min + vec2(16.0, 72.0)
+        },
+        egui::Align2::LEFT_TOP,
+        description,
+        egui::FontId::proportional(if compact { 11.0 } else { 12.0 }),
+        theme::MUTED,
+    );
+    ui.painter().text(
+        rect.right_bottom() - vec2(if compact { 12.0 } else { 16.0 }, 10.0),
+        egui::Align2::RIGHT_BOTTOM,
+        if primary {
+            tr("Start here")
+        } else {
+            tr("Open")
+        },
+        egui::FontId::proportional(11.5),
+        if primary { theme::ACCENT } else { theme::MUTED },
+    );
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), title)
+    });
+    response
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+        .clicked()
+}
+
+const WELCOME_IMAGE_EXTENSIONS: &[&str] = &[
+    "jpg", "jpeg", "png", "tif", "tiff", "webp", "bmp", "heic", "heif", "hif",
+];
+
+pub(super) struct WelcomeLayout {
+    pub rect: Rect,
+    pub card_width: f32,
+    pub compact: bool,
+}
+
+pub(super) fn welcome_layout(viewport: Rect) -> WelcomeLayout {
+    let width = 780.0_f32.min((viewport.width() - 24.0).max(240.0));
+    let compact = width < 640.0;
+    let max_height: f32 = if compact { 380.0 } else { 430.0 };
+    let height = max_height.min((viewport.height() - 16.0).max(240.0));
+    let card_width = if compact {
+        width
+    } else {
+        ((width - 56.0) / 3.0).max(180.0)
+    };
+    WelcomeLayout {
+        rect: Rect::from_center_size(viewport.center(), vec2(width, height)),
+        card_width,
+        compact,
     }
 }
 

@@ -1911,18 +1911,35 @@ fn system_clipboard_images_and_files_paste_from_another_process() {
 }
 
 fn frame(context: &egui::Context, app: &mut EditorApp) -> egui::FullOutput {
+    frame_at_size(context, app, Vec2::new(1280.0, 860.0))
+}
+
+fn frame_at_size(context: &egui::Context, app: &mut EditorApp, size: Vec2) -> egui::FullOutput {
     let output = context.run(
         egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                Pos2::ZERO,
-                Vec2::new(1280.0, 860.0),
-            )),
+            screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, size)),
             ..Default::default()
         },
         |ctx| app.show(ctx),
     );
     assert!(!output.shapes.is_empty());
     output
+}
+
+fn click_painted_text(context: &egui::Context, app: &mut EditorApp, text: &str) {
+    let pos = frame(context, app)
+        .shapes
+        .iter()
+        .find_map(|shape| match &shape.shape {
+            egui::Shape::Text(text_shape) if text_shape.galley.text() == text => {
+                Some(text_shape.pos + text_shape.galley.size() * 0.5)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("Missing painted text: {text}"));
+    pointer_frame(context, app, pos, None, egui::Modifiers::NONE);
+    pointer_frame(context, app, pos, Some(true), egui::Modifiers::NONE);
+    pointer_frame(context, app, pos, Some(false), egui::Modifiers::NONE);
 }
 
 fn pointer_frame(
@@ -3066,6 +3083,106 @@ fn welcome_and_all_tool_panels_render_without_panics() {
         frame(&context, &mut app);
     }
     assert!(app.error.is_none());
+}
+
+#[test]
+fn welcome_layout_uses_compact_cards_in_the_minimum_center_panel() {
+    let viewport = egui::Rect::from_min_size(egui::pos2(64.0, 140.0), egui::vec2(466.0, 395.0));
+    let layout = canvas::welcome_layout(viewport);
+    assert!(layout.compact);
+    assert!(viewport.contains_rect(layout.rect));
+    assert!(layout.card_width <= layout.rect.width());
+
+    let wide = canvas::welcome_layout(egui::Rect::from_min_size(
+        Pos2::ZERO,
+        egui::vec2(1260.0, 720.0),
+    ));
+    assert!(!wide.compact);
+    assert!(wide.card_width * 3.0 + 16.0 <= wide.rect.width());
+}
+
+#[test]
+fn welcome_renders_all_primary_actions_at_minimum_window_size() {
+    let (context, mut app) = app();
+    let output = frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
+    let text: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.text()),
+            _ => None,
+        })
+        .collect();
+    for label in [
+        "Single portrait",
+        "Batch export",
+        "Professional edit",
+        "One-click portrait templates",
+        "More ways to begin",
+    ] {
+        assert!(
+            text.iter().any(|value| value.contains(label)),
+            "Missing {label}"
+        );
+    }
+    for label in [
+        "Single portrait",
+        "Batch export",
+        "Professional edit",
+        "One-click portrait templates",
+        "More ways to begin",
+        "Everything stays on this computer. No uploads, no account.",
+    ] {
+        let position = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.text().contains(label) => {
+                    Some(text.pos + text.galley.size())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("Missing {label}"));
+        assert!(position.y < 560.0, "{label} is clipped vertically");
+        assert!(position.x < 600.0, "{label} overflows the center panel");
+    }
+}
+
+#[test]
+fn welcome_secondary_actions_open_dialogs_without_creating_a_document() {
+    let (context, mut editor) = app();
+    click_painted_text(&context, &mut editor, "Batch export");
+    assert!(editor.batch_dialog.is_some());
+
+    let (context, mut editor) = app();
+    click_painted_text(&context, &mut editor, "New canvas");
+    assert!(editor.dialog == Some(Dialog::New));
+    assert!(editor.sessions.is_empty());
+}
+
+#[test]
+fn welcome_portrait_and_template_entries_open_real_workflows() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/io/fixtures/rgb-strips.heic");
+
+    let (context, mut editor) = app();
+    editor.open_welcome_portrait(&context, &path);
+    assert!(editor.error.is_none(), "{:?}", editor.error);
+    assert_eq!(editor.sessions.len(), 1);
+    assert!(editor.portrait.is_some());
+
+    let (_, mut editor) = app();
+    editor.apply_welcome_template(&path, "film");
+    assert!(editor.error.is_none(), "{:?}", editor.error);
+    assert_eq!(editor.sessions.len(), 1);
+    assert_eq!(editor.session().unwrap().document.layers.len(), 2);
+    assert_eq!(editor.session().unwrap().history.names().count(), 1);
+
+    for slug in ["natural", "clear-portrait", "warm"] {
+        assert!(
+            xuan::portrait::preset::PresetV1::builtin(slug).is_ok(),
+            "Missing welcome template {slug}"
+        );
+    }
 }
 
 #[test]

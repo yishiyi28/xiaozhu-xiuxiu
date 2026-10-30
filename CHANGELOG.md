@@ -1,5 +1,13 @@
 # 小猪修修（原 XUAN）更新日志
 
+## Unreleased
+
+- Add a task-first welcome screen with single-portrait, batch-export and professional-edit entry points.
+- Add one-click Natural, Clear Portrait and Warm portrait templates that open an image and apply the recipe immediately.
+- Add a portrait-workspace sync action that opens a pre-filled batch job for applying the current face settings to a whole folder, with automatic face detection per photo.
+- Make the welcome screen switch to compact single-column action cards in the minimum window size.
+- Add English and Simplified Chinese coverage plus interaction and workflow regression tests for the new start screen.
+
 ## 0.6.9
 
 - Fix batch processing of ordinary image files so the imported image layer becomes active before a portrait preset analyzes it.

@@ -179,6 +179,7 @@ struct Session {
     document: Document,
     history: History,
     path: Option<PathBuf>,
+    source_path: Option<PathBuf>,
     title: String,
     zoom: f32,
     pan: Vec2,
@@ -201,6 +202,7 @@ impl Session {
             document,
             history: History::default(),
             path,
+            source_path: None,
             title,
             zoom: 1.0,
             pan: Vec2::ZERO,
@@ -817,12 +819,12 @@ impl EditorApp {
                 if !project && as_layer && !self.sessions.is_empty() {
                     return;
                 }
-                let path = if path.extension().is_some_and(|e| e == "xuan") {
+                let project_path = if path.extension().is_some_and(|e| e == "xuan") {
                     Some(path.to_path_buf())
                 } else {
                     None
                 };
-                let title = path
+                let title = project_path
                     .as_ref()
                     .and_then(|p| p.file_stem())
                     .map(|s| s.to_string_lossy().to_string())
@@ -832,7 +834,11 @@ impl EditorApp {
                             .first()
                             .map_or(tr("Untitled").into(), |l| l.name.clone())
                     });
-                self.sessions.push(Session::new(document, title, path));
+                self.sessions
+                    .push(Session::new(document, title, project_path));
+                if !project {
+                    self.sessions.last_mut().unwrap().source_path = Some(path.to_path_buf());
+                }
                 self.current = self.sessions.len() - 1;
                 self.mask_target = false;
                 self.dialog = None;
