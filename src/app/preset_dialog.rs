@@ -323,7 +323,12 @@ impl EditorApp {
     }
 }
 
-fn preset_chip(ui: &mut egui::Ui, selected: bool, preset: &PresetV1, label: &str) -> bool {
+pub(super) fn preset_chip(
+    ui: &mut egui::Ui,
+    selected: bool,
+    preset: &PresetV1,
+    label: &str,
+) -> bool {
     let response = ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::hover());
         let sample = |rgb: [u8; 3]| {

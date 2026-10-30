@@ -3186,6 +3186,59 @@ fn welcome_portrait_and_template_entries_open_real_workflows() {
 }
 
 #[test]
+fn welcome_template_review_previews_then_applies_as_one_step() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/io/fixtures/rgb-strips.heic");
+    let (context, mut app) = app();
+    app.open_welcome_template(&context, &path, "warm");
+    assert!(app.error.is_none(), "{:?}", app.error);
+    assert!(app.template_dialog.is_some());
+    assert_eq!(app.session().unwrap().document.layers.len(), 1);
+
+    frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
+    let output = frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
+    let text: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.text()),
+            _ => None,
+        })
+        .collect();
+    for label in [
+        "Portrait templates",
+        "Recommended for this photo",
+        "Show original",
+        "Apply template",
+    ] {
+        assert!(
+            text.iter().any(|value| value.contains(label)),
+            "Missing {label}"
+        );
+    }
+    for label in ["Portrait templates", "Show original", "Apply template"] {
+        let position = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.text().contains(label) => {
+                    Some(text.pos + text.galley.size())
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("Missing {label}"));
+        assert!(
+            position.x < 850.0 && position.y < 560.0,
+            "{label} is clipped"
+        );
+    }
+
+    click_painted_text(&context, &mut app, "Apply template");
+    assert!(app.template_dialog.is_none());
+    assert_eq!(app.session().unwrap().document.layers.len(), 2);
+    assert_eq!(app.session().unwrap().history.names().count(), 1);
+}
+
+#[test]
 fn image_children_collapse_and_effect_layers_attach_by_dragging() {
     let (context, mut app) = app();
     app.dimensions = [32, 24];

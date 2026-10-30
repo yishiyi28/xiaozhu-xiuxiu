@@ -779,7 +779,7 @@ impl EditorApp {
                 .add_filter(tr("Images"), WELCOME_IMAGE_EXTENSIONS)
                 .pick_file()
         {
-            self.apply_welcome_template(&path, slug);
+            self.open_welcome_template(&context, &path, slug);
         }
         if single
             && let Some(path) = rfd::FileDialog::new()
@@ -798,6 +798,7 @@ impl EditorApp {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn apply_welcome_template(&mut self, path: &Path, slug: &str) {
         let before = self.sessions.len();
         self.open_path(path, false);

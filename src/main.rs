@@ -30,7 +30,7 @@ struct Args {
     #[arg(
         long,
         value_name = "PANEL",
-        value_parser = ["levels", "hue", "curves", "export", "brush", "selection", "gradient", "shape", "text", "new", "settings"]
+        value_parser = ["levels", "hue", "curves", "export", "brush", "selection", "gradient", "shape", "text", "new", "settings", "templates"]
     )]
     screenshot_panel: Option<String>,
 
@@ -133,6 +133,7 @@ fn main() -> eframe::Result {
             } else {
                 xuan::batch::ConflictPolicy::Skip
             },
+            files: None,
             cancel: None,
         };
         match xuan::batch::run_batch(options) {

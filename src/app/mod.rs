@@ -23,6 +23,7 @@ mod settings;
 mod shortcuts;
 mod stroke_smoothing;
 mod tablet;
+mod template_dialog;
 #[cfg(test)]
 mod tests;
 mod text_controls;
@@ -404,6 +405,7 @@ pub struct EditorApp {
     portrait: Option<PortraitWorkspace>,
     portrait_job: Option<PortraitAnalysisJob>,
     preset_dialog: Option<preset_dialog::PresetDialogState>,
+    template_dialog: Option<template_dialog::TemplatePreviewState>,
     batch_dialog: Option<batch_dialog::BatchDialogState>,
     batch_job: Option<batch_dialog::BatchJob>,
     develop: Option<develop::Develop>,
@@ -540,6 +542,20 @@ impl EditorApp {
                 self.command(name);
             }
             "levels" | "hue" | "curves" | "new" | "settings" => self.command(name),
+            "templates" => {
+                let document = self.session().map(|session| session.document.clone());
+                if let Some(document) = document {
+                    match template_dialog::TemplatePreviewState::from_document(
+                        &self.context,
+                        &document,
+                        "natural",
+                        Some(Vec::new()),
+                    ) {
+                        Ok(state) => self.template_dialog = Some(state),
+                        Err(error) => self.error = Some(format!("{error:#}")),
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -562,6 +578,7 @@ impl EditorApp {
             portrait: None,
             portrait_job: None,
             preset_dialog: None,
+            template_dialog: None,
             batch_dialog: None,
             batch_job: None,
             develop: None,
@@ -1781,6 +1798,7 @@ impl EditorApp {
             self.canvas(ctx);
         }
         self.portrait_workspace(ctx);
+        self.template_dialog(ctx);
         self.preset_dialog(ctx);
         self.batch_dialog(ctx);
         self.dialogs(ctx);

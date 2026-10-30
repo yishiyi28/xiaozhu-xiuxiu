@@ -631,6 +631,7 @@ Current	当前
 Elapsed	已用
 ETA	预计剩余
 Copy failures	复制失败列表
+Retry failed	重试失败项
 Export failures…	导出失败列表…
 Processing…	正在处理…
 Batch cancellation requested	已请求取消批量任务
@@ -682,3 +683,16 @@ Sync preset	同步配方
 Synced portrait	同步人像
 Adjust the portrait before syncing it to a folder	请先调整人像，再同步到文件夹
 Selected preset	当前预设
+Portrait templates	人像模板
+Preview locally. Nothing is applied until you choose.	本地预览，选择模板后才会应用。
+No face detected. Color preview is still available.	未检测到人脸，仍可预览色彩效果。
+faces detected locally	张人脸已在本地识别
+Recommended	推荐
+Recommended for this photo	适合这张照片
+Show original	查看原图
+Apply template	应用模板
+Template preview	模板预览
+Balanced light: Natural keeps the look subtle.	光线均衡：自然通透会保留细腻质感。
+Dark photo: Warm adds light and energy.	画面偏暗：暖阳能补充光感与活力。
+Cool cast: Warm balances the image.	画面偏冷：暖阳能平衡色温。
+Bright photo: Clear Portrait restores dimension.	画面偏亮：清透人像能恢复层次。

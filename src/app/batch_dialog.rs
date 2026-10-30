@@ -144,6 +144,7 @@ impl EditorApp {
         };
         let mut open = true;
         let mut run = false;
+        let mut retry_failed = false;
         let mut cancel = false;
         widgets::Window::new(tr("Batch Export"))
             .default_width(460.0)
@@ -317,6 +318,9 @@ impl EditorApp {
                             .collect::<Vec<_>>()
                             .join("\n");
                         ui.horizontal(|ui| {
+                            if widgets::button(ui, tr("Retry failed")).clicked() {
+                                retry_failed = true;
+                            }
                             if widgets::button(ui, tr("Copy failures")).clicked() {
                                 ui.ctx().copy_text(failure_text.clone());
                             }
@@ -347,7 +351,23 @@ impl EditorApp {
                     }
                 });
             });
-        if run && dialog.ready() {
+        let retry_files = retry_failed.then(|| {
+            dialog
+                .report
+                .as_ref()
+                .map(|report| {
+                    report
+                        .failures
+                        .iter()
+                        .map(|failure| failure.path.clone())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        });
+        if (run || retry_failed)
+            && dialog.ready()
+            && retry_files.as_ref().is_none_or(|files| !files.is_empty())
+        {
             let options = BatchOptions {
                 input: PathBuf::from(&dialog.input),
                 output: PathBuf::from(&dialog.output),
@@ -358,6 +378,7 @@ impl EditorApp {
                 max_edge: (dialog.max_edge > 0).then_some(dialog.max_edge),
                 suffix: dialog.suffix.clone(),
                 conflict: dialog.conflict,
+                files: retry_files,
                 cancel: None,
             };
             self.batch_job = Some(BatchJob::spawn(options, context.clone()));

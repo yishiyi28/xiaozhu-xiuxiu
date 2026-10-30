@@ -50,6 +50,8 @@ pub struct BatchOptions {
     pub max_edge: Option<u32>,
     pub suffix: String,
     pub conflict: ConflictPolicy,
+    /// Restrict a run to these files instead of scanning `input`.
+    pub files: Option<Vec<PathBuf>>,
     pub cancel: Option<Arc<AtomicBool>>,
 }
 
@@ -84,6 +86,7 @@ impl BatchOptions {
             } else {
                 ConflictPolicy::Skip
             },
+            files: None,
             cancel: None,
         }
     }
@@ -102,8 +105,13 @@ pub fn run_batch_with_progress(
     }
     fs::create_dir_all(&options.output)
         .with_context(|| format!("Cannot create {}", options.output.display()))?;
-    let mut files = Vec::new();
-    collect_files(&options.input, options.recursive, &mut files)?;
+    let mut files = if let Some(files) = options.files.clone() {
+        files
+    } else {
+        let mut files = Vec::new();
+        collect_files(&options.input, options.recursive, &mut files)?;
+        files
+    };
     files.sort();
     let models = if options
         .preset
@@ -367,6 +375,32 @@ mod tests {
         let report = run_batch(options).unwrap();
         assert_eq!(report.failed, 1);
         assert_eq!(report.exported, 1);
+    }
+
+    #[test]
+    fn batch_can_retry_only_the_reported_failures() {
+        let dir = tempfile::tempdir().unwrap();
+        write_png(&dir.path().join("good.png"));
+        let bad = dir.path().join("bad.png");
+        fs::write(&bad, b"not an image").unwrap();
+        let mut options = BatchOptions::test_fixture(dir.path(), true);
+        options.output = dir.path().join("out");
+        let first = run_batch(options.clone()).unwrap();
+        assert_eq!(first.failed, 1);
+        assert_eq!(first.exported, 1);
+
+        write_png(&bad);
+        options.files = Some(
+            first
+                .failures
+                .iter()
+                .map(|failure| failure.path.clone())
+                .collect(),
+        );
+        let retry = run_batch(options).unwrap();
+        assert_eq!(retry.failed, 0);
+        assert_eq!(retry.exported, 1);
+        assert!(dir.path().join("out/bad_xiaozhu.png").exists());
     }
 
     #[test]
