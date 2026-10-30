@@ -64,6 +64,7 @@ def main():
         for filename in (
             "Cargo.toml",
             "Cargo.lock",
+            "build.rs",
             "LICENSE",
             "README.md",
             "THIRD_PARTY.md",

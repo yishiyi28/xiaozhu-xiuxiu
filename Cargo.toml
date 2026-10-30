@@ -46,6 +46,9 @@ uuid = { version = "1.18", features = ["v4", "serde"] }
 wgpu = { version = "27.0.1", default-features = false, features = ["vulkan", "gles", "wgsl"] }
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 calloop = "0.13"
 calloop-wayland-source = "0.3"

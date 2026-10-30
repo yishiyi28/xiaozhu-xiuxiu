@@ -17,4 +17,8 @@ for xuan_size in 16 24 32 48 64 96 128 256 512 1024; do
         "$xuan_directory/com.xiaozhu.xiuxiu.png"
 done
 
-printf 'Generated desktop icons from assets/Xuan.png.\n'
+magick "$xuan_root/assets/Xuan.png" \
+    -background none -define icon:auto-resize=256,128,96,64,48,32,24,16 \
+    "$xuan_root/assets/xiaozhu-xiuxiu.ico"
+
+printf 'Generated desktop icons and Windows ICO from assets/Xuan.png.\n'
