@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, HashSet},
     fs,
     path::{Path, PathBuf},
     sync::{
@@ -12,8 +13,8 @@ use egui::{ColorImage, TextureHandle, TextureOptions};
 use image::{RgbaImage, imageops::FilterType};
 use xuan::{
     batch::{
-        BatchOptions, BatchOutput, BatchProgress, BatchReport, ConflictPolicy,
-        run_batch_with_progress,
+        BatchOptions, BatchOutput, BatchProgress, BatchReport, ConflictPolicy, is_batch_supported,
+        list_batch_files, run_batch_with_progress,
     },
     i18n::tr,
     portrait::preset::PresetV1,
@@ -39,6 +40,11 @@ pub struct BatchDialogState {
     pub comparison: Option<BatchComparison>,
     pub comparison_key: Option<(PathBuf, PathBuf)>,
     pub comparison_error: Option<String>,
+    pub overrides: BTreeMap<PathBuf, PresetV1>,
+    pub override_section_open: bool,
+    pub override_files: Vec<PathBuf>,
+    pub override_files_key: Option<(String, bool)>,
+    pub override_error: Option<String>,
 }
 
 impl Default for BatchDialogState {
@@ -61,6 +67,11 @@ impl Default for BatchDialogState {
             comparison: None,
             comparison_key: None,
             comparison_error: None,
+            overrides: BTreeMap::new(),
+            override_section_open: false,
+            override_files: Vec::new(),
+            override_files_key: None,
+            override_error: None,
         }
     }
 }
@@ -142,6 +153,33 @@ fn comparison_pane(ui: &mut egui::Ui, label: &str, texture: &TextureHandle) {
     });
 }
 
+fn override_catalog(user_presets: &[PresetV1]) -> Vec<(String, PresetV1)> {
+    let builtins = [
+        ("natural", "Natural"),
+        ("clear-portrait", "Clear Portrait"),
+        ("warm", "Warm"),
+        ("cool", "Cool"),
+        ("film", "Film"),
+        ("soft-film", "Soft Film"),
+        ("mono", "Mono"),
+        ("high-contrast-mono", "High-contrast Mono"),
+    ]
+    .into_iter()
+    .filter_map(|(slug, label)| {
+        PresetV1::builtin(slug)
+            .ok()
+            .map(|preset| (tr(label).to_owned(), preset))
+    });
+    builtins
+        .chain(
+            user_presets
+                .iter()
+                .cloned()
+                .map(|preset| (preset.name.clone(), preset)),
+        )
+        .collect()
+}
+
 impl BatchDialogState {
     pub fn ready(&self) -> bool {
         let valid_edge = self.max_edge == 0 || (64..=30_000).contains(&self.max_edge);
@@ -149,6 +187,40 @@ impl BatchDialogState {
             && !self.output.trim().is_empty()
             && self.preset.is_some()
             && valid_edge
+    }
+
+    fn refresh_override_files(&mut self) {
+        if !self.override_section_open {
+            return;
+        }
+        let key = (self.input.clone(), self.recursive);
+        if self.override_files_key.as_ref() == Some(&key) {
+            return;
+        }
+        self.override_files_key = Some(key);
+        let input = PathBuf::from(&self.input);
+        match list_batch_files(&input, self.recursive) {
+            Ok(files) => {
+                self.override_files = files
+                    .into_iter()
+                    .filter(|path| {
+                        path.extension()
+                            .and_then(|extension| extension.to_str())
+                            .is_some_and(|extension| {
+                                is_batch_supported(&extension.to_ascii_lowercase())
+                            })
+                    })
+                    .collect();
+                let available: HashSet<_> = self.override_files.iter().cloned().collect();
+                self.overrides.retain(|path, _| available.contains(path));
+                self.override_error = None;
+            }
+            Err(error) => {
+                self.override_files.clear();
+                self.overrides.clear();
+                self.override_error = Some(format!("{error:#}"));
+            }
+        }
     }
 
     pub(super) fn screenshot_fixture(context: &egui::Context, before: RgbaImage) -> Self {
@@ -169,12 +241,20 @@ impl BatchDialogState {
             preset: PresetV1::builtin("natural").ok(),
             report: Some(BatchReport {
                 exported: 1,
-                outputs: vec![BatchOutput { source, output }],
+                outputs: vec![BatchOutput {
+                    source: source.clone(),
+                    output,
+                }],
                 ..Default::default()
             }),
             selected_output: Some(0),
+            override_section_open: true,
             ..Default::default()
         };
+        state.refresh_override_files();
+        if let Ok(warm) = PresetV1::builtin("warm") {
+            state.overrides.insert(source, warm);
+        }
         state.ensure_comparison(context);
         state
     }
@@ -351,6 +431,105 @@ impl EditorApp {
                         }
                         if let Some(preset) = &dialog.preset {
                             ui.label(format!("{}: {}", tr("Selected preset"), preset.name));
+                        }
+                        ui.separator();
+                        ui.checkbox(&mut dialog.override_section_open, tr("Per-file overrides"));
+                        if dialog.override_section_open {
+                            dialog.refresh_override_files();
+                            if let Some(error) = &dialog.override_error {
+                                ui.colored_label(egui::Color32::from_rgb(230, 110, 100), error);
+                            }
+                            if dialog.override_files.is_empty() {
+                                ui.label(tr("No supported files found."));
+                            } else {
+                                let catalog = override_catalog(&dialog.user_presets);
+                                let files = dialog.override_files.clone();
+                                let input = PathBuf::from(&dialog.input);
+                                ui.horizontal(|ui| {
+                                    ui.label(format!(
+                                        "{} {}",
+                                        dialog.overrides.len(),
+                                        tr("overrides")
+                                    ));
+                                    if widgets::button(ui, tr("Refresh files")).clicked() {
+                                        dialog.override_files_key = None;
+                                    }
+                                    if !dialog.overrides.is_empty()
+                                        && widgets::button(ui, tr("Clear overrides")).clicked()
+                                    {
+                                        dialog.overrides.clear();
+                                    }
+                                });
+                                egui::ScrollArea::vertical()
+                                    .id_salt("batch_file_overrides")
+                                    .max_height(170.0)
+                                    .show(ui, |ui| {
+                                        for path in files {
+                                            let relative = path
+                                                .strip_prefix(&input)
+                                                .unwrap_or(&path)
+                                                .display()
+                                                .to_string();
+                                            let mut selected = dialog
+                                                .overrides
+                                                .get(&path)
+                                                .map(|preset| preset.name.clone())
+                                                .unwrap_or_default();
+                                            let previous = selected.clone();
+                                            let selected_text = catalog
+                                                .iter()
+                                                .find(|(_, preset)| preset.name == selected)
+                                                .map_or_else(
+                                                    || tr("Use global preset").to_owned(),
+                                                    |(label, _)| label.clone(),
+                                                );
+                                            ui.horizontal(|ui| {
+                                                ui.add_sized(
+                                                    [160.0, 18.0],
+                                                    egui::Label::new(relative).truncate(),
+                                                )
+                                                .on_hover_text(path.display().to_string());
+                                                widgets::PopUp::from_id_salt((
+                                                    "batch_file_override",
+                                                    path.clone(),
+                                                ))
+                                                .selected_text(selected_text)
+                                                .width(190.0)
+                                                .show_ui(ui, |ui| {
+                                                    ui.selectable_value(
+                                                        &mut selected,
+                                                        String::new(),
+                                                        tr("Use global preset"),
+                                                    );
+                                                    for (label, preset) in &catalog {
+                                                        ui.selectable_value(
+                                                            &mut selected,
+                                                            preset.name.clone(),
+                                                            label,
+                                                        );
+                                                    }
+                                                });
+                                                if dialog.overrides.contains_key(&path)
+                                                    && widgets::button(ui, tr("Clear")).clicked()
+                                                {
+                                                    dialog.overrides.remove(&path);
+                                                }
+                                            });
+                                            if selected != previous {
+                                                if selected.is_empty() {
+                                                    dialog.overrides.remove(&path);
+                                                } else if let Some((_, preset)) = catalog
+                                                    .iter()
+                                                    .find(|(_, preset)| preset.name == selected)
+                                                {
+                                                    dialog
+                                                        .overrides
+                                                        .insert(path.clone(), preset.clone());
+                                                }
+                                            }
+                                        }
+                                    });
+                            }
                         }
                         ui.separator();
                         ui.horizontal(|ui| {
@@ -551,6 +730,7 @@ impl EditorApp {
                 max_edge: (dialog.max_edge > 0).then_some(dialog.max_edge),
                 suffix: dialog.suffix.clone(),
                 conflict: dialog.conflict,
+                overrides: dialog.overrides.clone(),
                 files: retry_files,
                 cancel: None,
             };
@@ -599,5 +779,24 @@ mod tests {
         let comparison = BatchComparison::load(&context, &source, &output).unwrap();
         assert_eq!(comparison.before.size(), [360, 180]);
         assert_eq!(comparison.after.size(), [360, 180]);
+    }
+
+    #[test]
+    fn override_file_list_filters_unsupported_files() {
+        let directory = tempfile::tempdir().unwrap();
+        RgbaImage::from_pixel(8, 8, Rgba([20, 40, 60, 255]))
+            .save(directory.path().join("photo.png"))
+            .unwrap();
+        fs::write(directory.path().join("notes.txt"), b"not an image").unwrap();
+        let mut dialog = BatchDialogState {
+            input: directory.path().display().to_string(),
+            override_section_open: true,
+            ..Default::default()
+        };
+        dialog.refresh_override_files();
+        assert_eq!(
+            dialog.override_files,
+            vec![directory.path().join("photo.png")]
+        );
     }
 }

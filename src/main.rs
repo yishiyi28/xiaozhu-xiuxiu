@@ -133,6 +133,7 @@ fn main() -> eframe::Result {
             } else {
                 xuan::batch::ConflictPolicy::Skip
             },
+            overrides: Default::default(),
             files: None,
             cancel: None,
         };

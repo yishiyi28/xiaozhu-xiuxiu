@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     sync::{
@@ -50,6 +51,7 @@ pub struct BatchOptions {
     pub max_edge: Option<u32>,
     pub suffix: String,
     pub conflict: ConflictPolicy,
+    pub overrides: BTreeMap<PathBuf, PresetV1>,
     /// Restrict a run to these files instead of scanning `input`.
     pub files: Option<Vec<PathBuf>>,
     pub cancel: Option<Arc<AtomicBool>>,
@@ -93,6 +95,7 @@ impl BatchOptions {
             } else {
                 ConflictPolicy::Skip
             },
+            overrides: BTreeMap::new(),
             files: None,
             cancel: None,
         }
@@ -115,16 +118,15 @@ pub fn run_batch_with_progress(
     let mut files = if let Some(files) = options.files.clone() {
         files
     } else {
-        let mut files = Vec::new();
-        collect_files(&options.input, options.recursive, &mut files)?;
-        files
+        list_batch_files(&options.input, options.recursive)?
     };
     files.sort();
     let models = if options
         .preset
-        .as_ref()
-        .and_then(|preset| preset.portrait.as_ref())
-        .is_some_and(has_portrait_effect)
+        .iter()
+        .chain(options.overrides.values())
+        .filter_map(|preset| preset.portrait.as_ref())
+        .any(has_portrait_effect)
     {
         Some(PortraitModels::shared()?)
     } else {
@@ -263,6 +265,13 @@ pub fn is_batch_supported(extension: &str) -> bool {
     )
 }
 
+pub fn list_batch_files(directory: &Path, recursive: bool) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    collect_files(directory, recursive, &mut files)?;
+    files.sort();
+    Ok(files)
+}
+
 pub fn load_batch_document(path: &Path) -> Result<Document> {
     let extension = path
         .extension()
@@ -309,7 +318,7 @@ fn process_file(
     models: Option<&PortraitModels>,
 ) -> Result<()> {
     let mut document = load_batch_document(source)?;
-    if let Some(preset) = &options.preset {
+    if let Some(preset) = options.overrides.get(source).or(options.preset.as_ref()) {
         let known_faces = if let Some(models) = models
             && preset.portrait.as_ref().is_some_and(has_portrait_effect)
         {
@@ -445,6 +454,49 @@ mod tests {
             .unwrap()
             .to_rgba8();
         assert_eq!(output.dimensions(), (64, 32));
+    }
+
+    #[test]
+    fn batch_applies_per_file_preset_overrides() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("first.png");
+        let second = dir.path().join("second.png");
+        let pixels = RgbaImage::from_pixel(48, 32, Rgba([130, 110, 90, 255]));
+        pixels.save(&first).unwrap();
+        pixels.save(&second).unwrap();
+        let mut options = BatchOptions::test_fixture(dir.path(), true);
+        options.output = dir.path().join("out");
+        options.preset = Some(crate::portrait::preset::PresetV1 {
+            schema_version: 1,
+            name: "Global".into(),
+            color: Some(crate::document::ColorGrade {
+                contrast: 25.0,
+                ..Default::default()
+            }),
+            portrait: None,
+        });
+        options.overrides.insert(
+            second.clone(),
+            crate::portrait::preset::PresetV1 {
+                schema_version: 1,
+                name: "Override".into(),
+                color: Some(crate::document::ColorGrade {
+                    temperature: 60.0,
+                    ..Default::default()
+                }),
+                portrait: None,
+            },
+        );
+
+        let report = run_batch(options).unwrap();
+        assert_eq!(report.exported, 2);
+        let first = image::open(dir.path().join("out/first_xiaozhu.png"))
+            .unwrap()
+            .to_rgba8();
+        let second = image::open(dir.path().join("out/second_xiaozhu.png"))
+            .unwrap()
+            .to_rgba8();
+        assert_ne!(first, second);
     }
 
     #[test]

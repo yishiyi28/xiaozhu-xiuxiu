@@ -7,6 +7,7 @@
 - Add a template review dialog with a local low-resolution preview, original comparison, photo-based recommendation, and recommendation reasoning.
 - Add one-click retry for only the failed files in a batch report.
 - Add selectable batch results with source/output tracking and equal-size before/after previews inside a scrollable report.
+- Add per-file batch preset overrides so individual photos can use a different built-in or user recipe while keeping the global default for the rest of the folder.
 - Add a portrait-workspace sync action that opens a pre-filled batch job for applying the current face settings to a whole folder, with automatic face detection per photo.
 - Make the welcome screen switch to compact single-column action cards in the minimum window size.
 - Add English and Simplified Chinese coverage plus interaction and workflow regression tests for the new start screen.
