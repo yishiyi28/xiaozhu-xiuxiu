@@ -1,6 +1,6 @@
 # 小猪修修（原 XUAN）更新日志
 
-## Unreleased
+## 0.7.0
 
 - Add a task-first welcome screen with single-portrait, batch-export and professional-edit entry points.
 - Add one-click Natural, Clear Portrait and Warm portrait templates that open an image and apply the recipe immediately.
