@@ -1,5 +1,10 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.7.1
+
+- Replace the application icon across the editor window, Windows executable, Linux desktop packages and source builds with the pig artwork.
+- Embed the Windows ICO through the build script so future GitHub releases and Afdian packages retain the new icon.
+
 ## 0.7.0
 
 - Add a task-first welcome screen with single-portrait, batch-export and professional-edit entry points.
