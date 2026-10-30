@@ -556,6 +556,14 @@ impl EditorApp {
                     }
                 }
             }
+            "batch-results" => {
+                if let Some(document) = self.session().map(|session| session.document.clone()) {
+                    self.batch_dialog = Some(batch_dialog::BatchDialogState::screenshot_fixture(
+                        &self.context,
+                        render::render(&document),
+                    ));
+                }
+            }
             _ => {}
         }
     }

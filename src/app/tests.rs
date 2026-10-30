@@ -3104,6 +3104,7 @@ fn welcome_layout_uses_compact_cards_in_the_minimum_center_panel() {
 #[test]
 fn welcome_renders_all_primary_actions_at_minimum_window_size() {
     let (context, mut app) = app();
+    frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
     let output = frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
     let text: Vec<_> = output
         .shapes
@@ -3236,6 +3237,33 @@ fn welcome_template_review_previews_then_applies_as_one_step() {
     assert!(app.template_dialog.is_none());
     assert_eq!(app.session().unwrap().document.layers.len(), 2);
     assert_eq!(app.session().unwrap().history.names().count(), 1);
+}
+
+#[test]
+fn batch_results_render_in_a_scrollable_dialog_at_minimum_size() {
+    let (context, mut app) = app();
+    app.dimensions = [160, 100];
+    app.new_document();
+    app.command("fill_fg");
+    let before = render::render(&app.session().unwrap().document);
+    app.batch_dialog = Some(batch_dialog::BatchDialogState::screenshot_fixture(
+        &context, before,
+    ));
+    frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
+    let output = frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
+    let text: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.text()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        text.iter().any(|value| value.contains("Batch Export")),
+        "{text:?}"
+    );
+    assert!(app.error.is_none());
 }
 
 #[test]

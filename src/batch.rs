@@ -61,12 +61,19 @@ pub struct BatchFailure {
     pub message: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BatchOutput {
+    pub source: PathBuf,
+    pub output: PathBuf,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BatchReport {
     pub exported: usize,
     pub failed: usize,
     pub skipped: usize,
     pub failures: Vec<BatchFailure>,
+    pub outputs: Vec<BatchOutput>,
 }
 
 impl BatchOptions {
@@ -170,7 +177,13 @@ pub fn run_batch_with_progress(
         }
         let result = process_file(&path, &target, &options, models.as_deref());
         match result {
-            Ok(()) => report.exported += 1,
+            Ok(()) => {
+                report.exported += 1;
+                report.outputs.push(BatchOutput {
+                    source: path.clone(),
+                    output: target.clone(),
+                });
+            }
             Err(error) => {
                 report.failed += 1;
                 report.failures.push(BatchFailure {
@@ -375,6 +388,8 @@ mod tests {
         let report = run_batch(options).unwrap();
         assert_eq!(report.failed, 1);
         assert_eq!(report.exported, 1);
+        assert_eq!(report.outputs.len(), 1);
+        assert!(report.outputs[0].output.ends_with("good_xiaozhu.png"));
     }
 
     #[test]
@@ -400,6 +415,7 @@ mod tests {
         let retry = run_batch(options).unwrap();
         assert_eq!(retry.failed, 0);
         assert_eq!(retry.exported, 1);
+        assert_eq!(retry.outputs.len(), 1);
         assert!(dir.path().join("out/bad_xiaozhu.png").exists());
     }
 
