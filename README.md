@@ -1,5 +1,5 @@
 # 小猪修修（原 XUAN）
-
+支持作者：htpps://afdian.com/a/xiaozhuzhugfy
 小猪修修（原 XUAN）是一个在 Linux 和 Windows 上运行的原生图层修图、照片修饰和相机 RAW 开发软件。永久免费，无订阅、无广告、无付费入口。
 
 小猪修修源自 XUAN，继续使用同一套 16-bit 图层、蒙版、滤镜和 RAW 工作流；为了兼容旧工程，项目文件仍使用 `.xuan` 扩展名。项目最初受 [Compositor](https://github.com/robbietilton/Compositor) 启发，并以 Rust 重写其核心能力。
