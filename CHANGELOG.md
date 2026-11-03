@@ -1,5 +1,10 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.7.2
+
+- Correct the Afdian support link in the GitHub project page.
+- Refresh the project introduction to clearly describe the offline Rust-based editor, the permanent-free policy, and the voluntary support model.
+
 ## 0.7.1
 
 - Replace the application icon across the editor window, Windows executable, Linux desktop packages and source builds with the pig artwork.

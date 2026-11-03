@@ -1,6 +1,8 @@
 # 小猪修修（原 XUAN）
-支持作者：htpps://afdian.com/a/xiaozhuzhugfy
-小猪修修（原 XUAN）是一个在 Linux 和 Windows 上运行的原生图层修图、照片修饰和相机 RAW 开发软件。永久免费，无订阅、无广告、无付费入口。
+
+小猪修修（原 XUAN）是一个在 Linux 和 Windows 上运行的原生图层修图、照片修饰和相机 RAW 开发软件。它使用 Rust、wgpu 和 egui 构建，专注本地离线处理、非破坏性编辑与完整的 16-bit 工作流。
+
+小猪修修永久免费，无订阅、无广告、无导出付费墙、无强制水印，也不设置付费功能入口。所有用户都可以使用完整功能。
 
 小猪修修源自 XUAN，继续使用同一套 16-bit 图层、蒙版、滤镜和 RAW 工作流；为了兼容旧工程，项目文件仍使用 `.xuan` 扩展名。项目最初受 [Compositor](https://github.com/robbietilton/Compositor) 启发，并以 Rust 重写其核心能力。
 
@@ -34,6 +36,10 @@ xiaozhu-xiuxiu --demo
 On Windows, extract the ZIP and launch `xiaozhu-xiuxiu.exe`. Windows uses DirectX 12 or Vulkan; Linux supports Wayland and X11 with working Vulkan drivers. See the [user guide](docs/USAGE.md) for installation, file formats, and editing tools. To build from source, follow the [development guide](docs/DEVELOPMENT.md).
 
 [Keyboard shortcuts](docs/SHORTCUTS.md) · [RAW workflow](docs/RAW.md) · [Project format](docs/FORMAT.md)
+
+## 支持作者
+
+如果小猪修修对你有帮助，可以通过 [爱发电](https://afdian.com/a/xiaozhuzhugfy) 支持项目持续开发。赞助完全自愿，不会解锁额外功能，软件仍然永久免费并向所有用户提供完整能力。
 
 ## License
 
