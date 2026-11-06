@@ -84,6 +84,7 @@ impl EditorApp {
             let config = Config {
                 language,
                 autosave_seconds,
+                upscale: self.config.upscale.clone(),
             };
             match Config::path().and_then(|path| config.save(&path)) {
                 Ok(()) => {

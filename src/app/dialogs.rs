@@ -34,6 +34,7 @@ impl EditorApp {
                 Dialog::Effect => self.effect_dialog(ctx),
                 Dialog::Text => self.text_dialog(ctx),
                 Dialog::Export => self.export_dialog(ctx),
+                Dialog::Upscale => self.upscale_dialog(ctx),
                 Dialog::Shortcuts => {
                     let mut open = true;
                     widgets::Window::new(tr("Keyboard shortcuts"))

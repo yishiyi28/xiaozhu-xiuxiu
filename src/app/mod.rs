@@ -28,6 +28,7 @@ mod template_dialog;
 mod tests;
 mod text_controls;
 mod theme;
+mod upscale;
 mod widgets;
 
 use std::{
@@ -305,6 +306,7 @@ enum Dialog {
     Effect,
     Text,
     Export,
+    Upscale,
     Shortcuts,
     About,
     Settings,
@@ -406,6 +408,8 @@ pub struct EditorApp {
     portrait_job: Option<PortraitAnalysisJob>,
     preset_dialog: Option<preset_dialog::PresetDialogState>,
     template_dialog: Option<template_dialog::TemplatePreviewState>,
+    upscale_dialog: Option<upscale::UpscaleDialogState>,
+    upscale_job: Option<upscale::UpscaleJob>,
     batch_dialog: Option<batch_dialog::BatchDialogState>,
     batch_job: Option<batch_dialog::BatchJob>,
     develop: Option<develop::Develop>,
@@ -541,7 +545,7 @@ impl EditorApp {
                 self.export_format = "jpg".into();
                 self.command(name);
             }
-            "levels" | "hue" | "curves" | "new" | "settings" => self.command(name),
+            "levels" | "hue" | "curves" | "new" | "settings" | "upscale" => self.command(name),
             "templates" => {
                 let document = self.session().map(|session| session.document.clone());
                 if let Some(document) = document {
@@ -587,6 +591,8 @@ impl EditorApp {
             portrait_job: None,
             preset_dialog: None,
             template_dialog: None,
+            upscale_dialog: None,
+            upscale_job: None,
             batch_dialog: None,
             batch_job: None,
             develop: None,
@@ -1330,6 +1336,12 @@ impl EditorApp {
                 });
             }
             "new" => self.dialog = Some(Dialog::New),
+            "upscale" => {
+                self.upscale_dialog = Some(upscale::UpscaleDialogState::from_config(
+                    &self.config.upscale,
+                ));
+                self.dialog = Some(Dialog::Upscale);
+            }
             "open" => self.open_dialog(false),
             "open_clipboard" => self.open_clipboard(),
             "import" => self.open_dialog(true),
@@ -1660,7 +1672,10 @@ impl EditorApp {
                 self.preset_dialog = Some(preset_dialog::PresetDialogState::default());
             }
             "batch_export_dialog" => {
-                self.batch_dialog = Some(batch_dialog::BatchDialogState::default());
+                self.batch_dialog = Some(batch_dialog::BatchDialogState {
+                    upscale_options: self.config.upscale.clone(),
+                    ..Default::default()
+                });
             }
             "preset_import" => {
                 if let Some(path) = rfd::FileDialog::new()
@@ -1749,6 +1764,7 @@ impl EditorApp {
     fn show_with_processor(&mut self, ctx: &egui::Context) {
         self.recover_restored_window_layout(ctx);
         self.poll_job();
+        self.poll_upscale();
         self.poll_portrait_job(ctx);
         self.poll_develop(ctx);
         self.frames += 1;

@@ -3267,6 +3267,38 @@ fn batch_results_render_in_a_scrollable_dialog_at_minimum_size() {
 }
 
 #[test]
+fn ai_upscale_dialog_opens_and_renders_at_minimum_size() {
+    let (context, mut app) = app();
+    app.dimensions = [64, 48];
+    app.new_document();
+    app.command("upscale");
+    assert!(app.dialog == Some(Dialog::Upscale));
+    assert!(app.upscale_dialog.is_some());
+    frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
+    let output = frame_at_size(&context, &mut app, Vec2::new(850.0, 560.0));
+    let text: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.text()),
+            _ => None,
+        })
+        .collect();
+    for label in [
+        "AI Upscale",
+        "Backend executable",
+        "Model folder",
+        "Start AI Upscale",
+    ] {
+        assert!(
+            text.iter().any(|value| value.contains(label)),
+            "Missing {label}"
+        );
+    }
+    assert!(app.error.is_none());
+}
+
+#[test]
 fn image_children_collapse_and_effect_layers_attach_by_dragging() {
     let (context, mut app) = app();
     app.dimensions = [32, 24];

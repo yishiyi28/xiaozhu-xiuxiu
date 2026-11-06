@@ -58,6 +58,7 @@ def check_files(prefix, portable=False, windows=False, appimage=False):
         "USAGE.md",
         "SHORTCUTS.md",
         "RAW.md",
+        "AI_UPSCALE.md",
         "THIRD_PARTY.md",
         "SOURCES.md",
         "copyright",
@@ -203,6 +204,7 @@ def check_source(temporary):
         ".github/workflows/linux.yml",
         ".github/workflows/windows.yml",
         "docs/DEVELOPMENT.md",
+        "docs/AI_UPSCALE.md",
         "LICENSE",
         "THIRD_PARTY.md",
     ):

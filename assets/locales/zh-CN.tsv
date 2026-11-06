@@ -706,3 +706,29 @@ Clear overrides	清除全部覆盖
 Refresh files	刷新文件列表
 Use global preset	使用全局预设
 Clear	清除
+AI Upscale	AI 放大
+AI Upscale…	AI 放大…
+Uses a separately installed Upscayl-compatible NCNN backend. Backend and model licenses are not bundled with 小猪修修.	使用单独安装的 Upscayl 兼容 NCNN 后端。小猪修修不捆绑其后端和模型许可证。
+Backend executable	后端程序
+Model folder	模型文件夹
+Model	模型
+No models found	未找到模型
+Refresh models	刷新模型
+Scale	倍率
+Tile size	分块大小
+Tile size (0 = automatic)	分块大小（0 = 自动）
+ px (0 = automatic)	 px（0 = 自动）
+TTA mode (slower, higher quality)	TTA 模式（更慢，质量更高）
+GPU ID	GPU 编号
+Optional backend GPU index	可选的后端 GPU 索引
+The result opens as a new flattened document. Layers, 16-bit precision and project masks are not preserved.	结果将作为新的扁平化文档打开，不会保留图层、16 位精度和项目蒙版。
+Start AI Upscale	开始 AI 放大
+Preparing image…	正在准备图像…
+AI upscale worker stopped unexpectedly	AI 放大任务意外停止
+AI upscale complete	AI 放大完成
+AI upscale cancelled	AI 放大已取消
+Cancelling…	正在取消…
+Starting AI upscale…	正在启动 AI 放大…
+AI upscale output	AI 放大输出
+Configure the backend and models from Image → AI Upscale. They are not bundled with 小猪修修.	请从“图像 → AI 放大”配置后端和模型，小猪修修不会捆绑它们。
+AI upscale settings are not ready	AI 放大设置尚未就绪

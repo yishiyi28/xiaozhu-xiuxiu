@@ -1,5 +1,12 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.8.0
+
+- Add optional AI upscaling through a separately installed Upscayl-compatible NCNN backend.
+- Support external model discovery, 2×/3×/4× scale, tile size, TTA, GPU selection, progress and cancellation.
+- Open completed single-image AI upscales as new flattened documents and allow AI upscaling in batch exports.
+- Keep backend executables and third-party models outside the MIT application package, with separate licensing and setup documentation.
+
 ## 0.7.2
 
 - Correct the Afdian support link in the GitHub project page.

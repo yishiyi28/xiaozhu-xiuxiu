@@ -19,6 +19,8 @@ use crate::{
         inference::PortraitModels,
         preset::{FacePolicy, PresetV1, apply_preset_to_document_with_faces, has_portrait_effect},
     },
+    render,
+    upscale::{UpscaleOptions, run_upscale},
 };
 
 #[derive(Clone, Debug)]
@@ -52,6 +54,7 @@ pub struct BatchOptions {
     pub suffix: String,
     pub conflict: ConflictPolicy,
     pub overrides: BTreeMap<PathBuf, PresetV1>,
+    pub upscale: Option<UpscaleOptions>,
     /// Restrict a run to these files instead of scanning `input`.
     pub files: Option<Vec<PathBuf>>,
     pub cancel: Option<Arc<AtomicBool>>,
@@ -96,6 +99,7 @@ impl BatchOptions {
                 ConflictPolicy::Skip
             },
             overrides: BTreeMap::new(),
+            upscale: None,
             files: None,
             cancel: None,
         }
@@ -178,6 +182,13 @@ pub fn run_batch_with_progress(
             continue;
         }
         let result = process_file(&path, &target, &options, models.as_deref());
+        if options
+            .cancel
+            .as_ref()
+            .is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+        {
+            break;
+        }
         match result {
             Ok(()) => {
                 report.exported += 1;
@@ -348,6 +359,25 @@ fn process_file(
     }
     let parent = target.parent().context("Output path has no parent")?;
     fs::create_dir_all(parent)?;
+    if let Some(upscale) = &options.upscale {
+        let temporary = tempfile::Builder::new()
+            .prefix(".xiaozhu-upscale-")
+            .tempdir_in(parent)?;
+        let input = temporary.path().join("input.png");
+        let output = temporary.path().join("output.png");
+        render::render(&document)
+            .save(&input)
+            .with_context(|| format!("Cannot prepare {}", source.display()))?;
+        let idle_cancel = AtomicBool::new(false);
+        run_upscale(
+            upscale,
+            &input,
+            &output,
+            options.cancel.as_deref().unwrap_or(&idle_cancel),
+            None,
+        )?;
+        document = load_batch_document(&output)?;
+    }
     // io::export writes through its own sibling temporary file and atomically
     // persists the completed image. The pre-flight exists check above enforces
     // the no-overwrite policy before any decoding or rendering work begins.
@@ -590,6 +620,32 @@ mod tests {
         assert_eq!(last.current, None);
         assert_eq!(last.completed, 2);
         assert_eq!(last.total, 2);
+    }
+
+    #[test]
+    #[ignore = "requires XIAOZHU_UPSCAYL_BIN, XIAOZHU_UPSCAYL_MODELS and XIAOZHU_UPSCAYL_MODEL"]
+    fn external_upscale_batch_smoke() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = dir.path().join("small.png");
+        RgbaImage::from_pixel(32, 24, Rgba([90, 120, 170, 255]))
+            .save(&source)
+            .unwrap();
+        let mut options = BatchOptions::test_fixture(dir.path(), true);
+        options.output = dir.path().join("out");
+        options.suffix = "_ai".into();
+        options.upscale = Some(crate::upscale::UpscaleOptions {
+            backend: std::env::var("XIAOZHU_UPSCAYL_BIN").unwrap(),
+            models: std::env::var("XIAOZHU_UPSCAYL_MODELS").unwrap(),
+            model: std::env::var("XIAOZHU_UPSCAYL_MODEL").unwrap(),
+            scale: 2,
+            ..Default::default()
+        });
+        let report = run_batch(options).unwrap();
+        assert_eq!(report.exported, 1);
+        let output = image::open(dir.path().join("out/small_ai.png"))
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(output.dimensions(), (64, 48));
     }
 
     fn write_png(path: &Path) {

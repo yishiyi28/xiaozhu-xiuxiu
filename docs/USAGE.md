@@ -186,6 +186,10 @@ Add `--recursive` to include subdirectories. Existing outputs can be skipped, re
 
 In the batch window, enable **Per-file overrides** to keep the global preset for most photos while assigning another built-in or user preset to selected files. After the run, choose any successful result to compare the source and exported image side by side.
 
+### AI upscale
+
+An optional Upscayl-compatible external backend can add 2×, 3× or 4× AI upscaling to single images and batch exports. The backend and models are not bundled; configure your own executable and model folder from **Image → AI Upscale…**. See [AI upscale](AI_UPSCALE.md) for setup, limitations and licensing.
+
 ## Files and export
 
 Use **File → Open Compositor Project…** to import an original `.comp` folder package. Save it as `.xuan` to keep editing in 小猪修修. Image export supports PNG, JPEG, TIFF, and WebP; JPEG has a quality preview and PNG/JPEG carry print resolution.

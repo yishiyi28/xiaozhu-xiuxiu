@@ -537,6 +537,7 @@ impl EditorApp {
         let preset = portrait_sync_preset(workspace)?;
         let mut dialog = BatchDialogState {
             preset: Some(preset.clone()),
+            upscale_options: self.config.upscale.clone(),
             ..Default::default()
         };
         if let Some(path) = self

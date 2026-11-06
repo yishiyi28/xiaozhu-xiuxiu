@@ -12,6 +12,7 @@ DOCUMENTS = {
     "docs/USAGE.md": "USAGE.md",
     "docs/SHORTCUTS.md": "SHORTCUTS.md",
     "docs/RAW.md": "RAW.md",
+    "docs/AI_UPSCALE.md": "AI_UPSCALE.md",
     "THIRD_PARTY.md": "THIRD_PARTY.md",
 }
 LOCAL_LINKS = {

@@ -8,6 +8,8 @@ use std::{
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
+use crate::upscale::UpscaleOptions;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Language {
     #[default]
@@ -32,6 +34,7 @@ pub struct Config {
     pub language: Language,
     /// Interval between crash-recovery snapshots. Zero disables autosave.
     pub autosave_seconds: u32,
+    pub upscale: UpscaleOptions,
 }
 
 impl Default for Config {
@@ -39,6 +42,7 @@ impl Default for Config {
         Self {
             language: Language::default(),
             autosave_seconds: 120,
+            upscale: UpscaleOptions::default(),
         }
     }
 }
@@ -88,6 +92,7 @@ impl Config {
             "autosave_seconds".into(),
             toml::Value::Integer(i64::from(self.autosave_seconds)),
         );
+        table.insert("upscale".into(), toml::Value::try_from(&self.upscale)?);
         let parent = path.parent().context("Configuration path has no parent")?;
         fs::create_dir_all(parent)?;
         let mut file = tempfile::NamedTempFile::new_in(parent)?;
@@ -132,6 +137,15 @@ mod tests {
         let chinese = Config {
             language: Language::SimplifiedChinese,
             autosave_seconds: 60,
+            upscale: UpscaleOptions {
+                backend: "C:/tools/upscayl-bin.exe".into(),
+                models: "C:/models".into(),
+                model: "upscayl-lite-4x".into(),
+                scale: 2,
+                tile_size: 256,
+                tta: true,
+                gpu_id: "1".into(),
+            },
         };
         chinese.save(&path).unwrap();
         assert_eq!(Config::load(&path).unwrap(), chinese);

@@ -18,6 +18,7 @@ use xuan::{
     },
     i18n::tr,
     portrait::preset::PresetV1,
+    upscale::UpscaleOptions,
 };
 
 use super::{EditorApp, widgets};
@@ -33,6 +34,8 @@ pub struct BatchDialogState {
     pub max_edge: u32,
     pub suffix: String,
     pub conflict: ConflictPolicy,
+    pub upscale: bool,
+    pub upscale_options: UpscaleOptions,
     pub error: Option<String>,
     pub report: Option<BatchReport>,
     pub progress: Option<BatchProgress>,
@@ -60,6 +63,8 @@ impl Default for BatchDialogState {
             max_edge: 0,
             suffix: "_xiaozhu".into(),
             conflict: ConflictPolicy::Skip,
+            upscale: false,
+            upscale_options: UpscaleOptions::default(),
             error: None,
             report: None,
             progress: None,
@@ -187,6 +192,7 @@ impl BatchDialogState {
             && !self.output.trim().is_empty()
             && self.preset.is_some()
             && valid_edge
+            && (!self.upscale || self.upscale_options.validate().is_ok())
     }
 
     fn refresh_override_files(&mut self) {
@@ -556,6 +562,28 @@ impl EditorApp {
                                 .text(tr("Max edge"))
                                 .suffix(tr(" px (0 = original)")),
                         );
+                        ui.checkbox(&mut dialog.upscale, tr("AI upscale output"));
+                        if dialog.upscale {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{}: {} · {}×",
+                                    tr("Model"), dialog.upscale_options.model, dialog.upscale_options.scale
+                                ))
+                                .color(egui::Color32::from_gray(170)),
+                            );
+                            ui.label(
+                                egui::RichText::new(tr(
+                                    "Configure the backend and models from Image → AI Upscale. They are not bundled with 小猪修修.",
+                                ))
+                                .color(egui::Color32::from_gray(145)),
+                            );
+                            if let Err(error) = dialog.upscale_options.validate() {
+                                ui.colored_label(
+                                    egui::Color32::from_rgb(230, 110, 100),
+                                    format!("{}: {error:#}", tr("AI upscale settings are not ready")),
+                                );
+                            }
+                        }
                         ui.horizontal(|ui| {
                             ui.label(tr("Filename suffix"));
                             ui.text_edit_singleline(&mut dialog.suffix);
@@ -731,6 +759,7 @@ impl EditorApp {
                 suffix: dialog.suffix.clone(),
                 conflict: dialog.conflict,
                 overrides: dialog.overrides.clone(),
+                upscale: dialog.upscale.then(|| dialog.upscale_options.clone()),
                 files: retry_files,
                 cancel: None,
             };
@@ -762,6 +791,8 @@ mod tests {
         assert!(!dialog.ready());
         dialog.preset = Some(xuan::portrait::preset::PresetV1::builtin("natural").unwrap());
         assert!(dialog.ready());
+        dialog.upscale = true;
+        assert!(!dialog.ready());
     }
 
     #[test]

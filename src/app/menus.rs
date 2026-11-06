@@ -308,6 +308,7 @@ impl EditorApp {
                                 ui.separator();
                                 item(ui, tr("Image Size…"), "", "image_size", &mut action);
                                 item(ui, tr("Canvas Size…"), "", "canvas_size", &mut action);
+                                item(ui, tr("AI Upscale…"), "", "upscale", &mut action);
                                 ui.separator();
                                 item(
                                     ui,
