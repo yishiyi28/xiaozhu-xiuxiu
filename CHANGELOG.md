@@ -1,5 +1,12 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.8.1
+
+- Allow AI upscale backend and model settings to be configured without an open document, from both Edit and Batch Export.
+- Auto-detect the matching models folder when selecting an Upscayl backend from its resources directory.
+- Preserve the original photo path on AI-upscaled results so folder-based portrait and batch workflows remain usable.
+- Save AI upscale settings on explicit save or dialog close, and serialize AI upscale with batch jobs to avoid concurrent backend runs.
+
 ## 0.8.0
 
 - Add optional AI upscaling through a separately installed Upscayl-compatible NCNN backend.

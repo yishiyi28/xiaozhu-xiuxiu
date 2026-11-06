@@ -3299,6 +3299,28 @@ fn ai_upscale_dialog_opens_and_renders_at_minimum_size() {
 }
 
 #[test]
+fn ai_upscale_settings_open_without_a_document() {
+    let (context, mut app) = app();
+    app.command("upscale");
+    assert!(app.dialog == Some(Dialog::Upscale));
+    frame(&context, &mut app);
+    let output = frame(&context, &mut app);
+    let text: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::Shape::Text(text) => Some(text.galley.text()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        text.iter()
+            .any(|value| value.contains("Open an image to start AI upscale."))
+    );
+    assert!(text.iter().any(|value| value.contains("Save settings")));
+}
+
+#[test]
 fn image_children_collapse_and_effect_layers_attach_by_dragging() {
     let (context, mut app) = app();
     app.dimensions = [32, 24];

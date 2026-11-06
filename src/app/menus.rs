@@ -142,6 +142,8 @@ impl EditorApp {
         let has_doc = self.session().is_some() && !developing;
         let can_view = self.develop.as_ref().is_none_or(|d| d.ready());
         let blocked = self.job.is_some()
+            || self.batch_job.is_some()
+            || self.upscale_job.is_some()
             || self.dialog.is_some()
             || self.close_app
             || self.develop_close_requested.is_some()
@@ -224,6 +226,7 @@ impl EditorApp {
                         });
                         menu_bar_button(ui, tr("Edit"), |ui| {
                             item(ui, tr("Settings…"), "Ctrl+,", "settings", &mut action);
+                            item(ui, tr("AI Upscale…"), "", "upscale", &mut action);
                             item(ui, tr("Portrait Retouch…"), "P", "portrait", &mut action);
                             ui.separator();
                             let (undo, redo) = if let Some(d) = &self.develop {

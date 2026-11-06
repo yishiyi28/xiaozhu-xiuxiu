@@ -150,6 +150,13 @@ pub fn discover_models(directory: &Path) -> Result<Vec<String>> {
     Ok(parameters.intersection(&weights).cloned().collect())
 }
 
+pub fn suggest_models_dir(backend: &Path) -> Option<PathBuf> {
+    let directory = backend.parent()?;
+    [directory.join("models"), directory.parent()?.join("models")]
+        .into_iter()
+        .find(|candidate| candidate.is_dir())
+}
+
 pub fn run_upscale(
     options: &UpscaleOptions,
     input: &Path,
@@ -305,6 +312,18 @@ mod tests {
         assert!(args.windows(2).any(|pair| pair == ["-t", "256"]));
         assert!(args.iter().any(|arg| arg == "-x"));
         assert!(args.windows(2).any(|pair| pair == ["-g", "1"]));
+    }
+
+    #[test]
+    fn suggests_models_next_to_upscayl_resources() {
+        let directory = tempfile::tempdir().unwrap();
+        let bin = directory.path().join("resources/bin");
+        let models = directory.path().join("resources/models");
+        fs::create_dir_all(&bin).unwrap();
+        fs::create_dir_all(&models).unwrap();
+        let backend = bin.join("upscayl-bin.exe");
+        fs::write(&backend, b"").unwrap();
+        assert_eq!(suggest_models_dir(&backend), Some(models));
     }
 
     #[test]

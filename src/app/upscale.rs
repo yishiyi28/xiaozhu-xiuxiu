@@ -1,5 +1,5 @@
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -13,7 +13,10 @@ use xuan::{
     document::Document,
     i18n::tr,
     render,
-    upscale::{UpscaleOptions, UpscaleProgress, UpscaleResult, discover_models, run_upscale},
+    upscale::{
+        UpscaleOptions, UpscaleProgress, UpscaleResult, discover_models, run_upscale,
+        suggest_models_dir,
+    },
 };
 
 use super::{EditorApp, theme, widgets};
@@ -74,6 +77,7 @@ pub(super) struct UpscaleJob {
     progress: Receiver<UpscaleProgress>,
     cancel: Arc<AtomicBool>,
     title: String,
+    source_path: Option<PathBuf>,
     _temporary: tempfile::TempDir,
 }
 
@@ -81,6 +85,7 @@ impl UpscaleJob {
     pub(super) fn spawn(
         document: Document,
         title: String,
+        source_path: Option<PathBuf>,
         options: UpscaleOptions,
         context: egui::Context,
     ) -> Result<Self> {
@@ -123,6 +128,7 @@ impl UpscaleJob {
             progress,
             cancel,
             title,
+            source_path,
             _temporary: temporary,
         })
     }
@@ -194,6 +200,7 @@ impl EditorApp {
                     && let Some(session) = self.session_mut()
                 {
                     session.title = title;
+                    session.source_path = job.source_path.clone();
                     self.status = format!(
                         "{} · {:.1}s",
                         tr("AI upscale complete"),
@@ -232,8 +239,10 @@ impl EditorApp {
             return;
         };
         let running = self.upscale_job.is_some();
+        let has_document = self.session().is_some();
         let mut open = true;
         let mut start = false;
+        let mut save_settings = false;
         let mut cancel = false;
         let mut refresh = false;
         widgets::Window::new(tr("AI Upscale"))
@@ -256,6 +265,11 @@ impl EditorApp {
                             && let Some(path) = rfd::FileDialog::new().pick_file()
                         {
                             dialog.options.backend = path.display().to_string();
+                            if let Some(models) = suggest_models_dir(&path) {
+                                dialog.options.models = models.display().to_string();
+                                dialog.models_key.clear();
+                                refresh = true;
+                            }
                         }
                     });
                     ui.horizontal(|ui| {
@@ -356,8 +370,17 @@ impl EditorApp {
                         if widgets::button(ui, tr("Cancel")).clicked() {
                             cancel = true;
                         }
-                    } else if widgets::primary_button(ui, tr("Start AI Upscale")).clicked() {
-                        start = true;
+                    } else {
+                        if has_document {
+                            if widgets::primary_button(ui, tr("Start AI Upscale")).clicked() {
+                                start = true;
+                            }
+                        } else {
+                            ui.label(tr("Open an image to start AI upscale."));
+                        }
+                        if widgets::button(ui, tr("Save settings")).clicked() {
+                            save_settings = true;
+                        }
                     }
                 });
             });
@@ -368,6 +391,12 @@ impl EditorApp {
             job.cancel();
             dialog.status = Some(tr("Cancelling…").into());
         }
+        if save_settings {
+            match self.save_upscale_options(dialog.options.clone()) {
+                Ok(()) => dialog.status = Some(tr("AI upscale settings saved").into()),
+                Err(error) => dialog.error = Some(format!("{error:#}")),
+            }
+        }
         if start {
             let Some(session) = self.session() else {
                 dialog.error = Some(tr("Open an image first").into());
@@ -376,13 +405,20 @@ impl EditorApp {
             };
             let document = session.document.clone();
             let source_title = session.title.clone();
+            let source_path = session.source_path.clone().or_else(|| session.path.clone());
             let title = format!(
                 "{} — {} {}×",
                 source_title,
                 tr("AI Upscale"),
                 dialog.options.scale
             );
-            match UpscaleJob::spawn(document, title, dialog.options.clone(), context.clone()) {
+            match UpscaleJob::spawn(
+                document,
+                title,
+                source_path,
+                dialog.options.clone(),
+                context.clone(),
+            ) {
                 Ok(job) => {
                     self.upscale_job = Some(job);
                     dialog.error = None;
@@ -398,6 +434,10 @@ impl EditorApp {
             context.request_repaint_after(std::time::Duration::from_millis(100));
         }
         if !open {
+            if !save_settings && let Err(error) = self.save_upscale_options(dialog.options.clone())
+            {
+                self.error = Some(format!("{error:#}"));
+            }
             if let Some(job) = &self.upscale_job {
                 job.cancel();
             }
@@ -430,9 +470,11 @@ mod tests {
         app.new_document();
         app.command("fill_fg");
         let document = app.session().unwrap().document.clone();
+        let source_path = PathBuf::from("C:/photos/source.jpg");
         let job = UpscaleJob::spawn(
             document,
             "Upscale smoke".into(),
+            Some(source_path.clone()),
             options.clone(),
             context.clone(),
         )
@@ -447,7 +489,9 @@ mod tests {
         }
         assert!(app.upscale_job.is_none(), "upscale job timed out");
         assert!(app.error.is_none(), "{:?}", app.error);
-        let document = &app.session().unwrap().document;
+        let session = app.session().unwrap();
+        assert_eq!(session.source_path.as_ref(), Some(&source_path));
+        let document = &session.document;
         assert_eq!((document.width, document.height), (64, 48));
     }
 }

@@ -732,3 +732,7 @@ Starting AI upscale…	正在启动 AI 放大…
 AI upscale output	AI 放大输出
 Configure the backend and models from Image → AI Upscale. They are not bundled with 小猪修修.	请从“图像 → AI 放大”配置后端和模型，小猪修修不会捆绑它们。
 AI upscale settings are not ready	AI 放大设置尚未就绪
+Open an image to start AI upscale.	打开一张图片后才能开始 AI 放大。
+Save settings	保存设置
+AI upscale settings saved	AI 放大设置已保存
+Configure AI Upscale…	配置 AI 放大…

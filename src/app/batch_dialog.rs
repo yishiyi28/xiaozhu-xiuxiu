@@ -21,7 +21,7 @@ use xuan::{
     upscale::UpscaleOptions,
 };
 
-use super::{EditorApp, widgets};
+use super::{Dialog, EditorApp, widgets};
 
 pub struct BatchDialogState {
     pub input: String,
@@ -350,6 +350,7 @@ impl EditorApp {
         let Some(mut dialog) = self.batch_dialog.take() else {
             return;
         };
+        dialog.upscale_options = self.config.upscale.clone();
         dialog.ensure_comparison(context);
         let mut open = true;
         let mut run = false;
@@ -577,6 +578,14 @@ impl EditorApp {
                                 ))
                                 .color(egui::Color32::from_gray(145)),
                             );
+                            if widgets::button(ui, tr("Configure AI Upscale…")).clicked() {
+                                self.upscale_dialog = Some(
+                                    super::upscale::UpscaleDialogState::from_config(
+                                        &self.config.upscale,
+                                    ),
+                                );
+                                self.dialog = Some(Dialog::Upscale);
+                            }
                             if let Err(error) = dialog.upscale_options.validate() {
                                 ui.colored_label(
                                     egui::Color32::from_rgb(230, 110, 100),

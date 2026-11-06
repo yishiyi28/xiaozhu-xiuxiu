@@ -1266,7 +1266,7 @@ impl EditorApp {
     }
 
     fn command(&mut self, command: &str) {
-        if self.job.is_some() {
+        if self.job.is_some() || self.batch_job.is_some() || self.upscale_job.is_some() {
             return;
         }
         if let Some(develop) = &mut self.develop {
