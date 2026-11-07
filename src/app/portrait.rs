@@ -5,7 +5,7 @@ use std::sync::{
 };
 
 use anyhow::{Context, Result};
-use egui::{ColorImage, Sense, TextureHandle, TextureOptions, vec2};
+use egui::{ColorImage, RichText, Sense, TextureHandle, TextureOptions, vec2};
 use image::RgbaImage;
 use uuid::Uuid;
 use xuan::{
@@ -24,7 +24,7 @@ use xuan::{
     },
 };
 
-use super::{EditorApp, batch_dialog::BatchDialogState, widgets};
+use super::{EditorApp, batch_dialog::BatchDialogState, theme, widgets};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PortraitState {
@@ -72,6 +72,7 @@ pub struct PortraitWorkspace {
     pub selected: usize,
     pub apply_to_all: bool,
     pub settings: Vec<PortraitSettings>,
+    quick_look: Option<String>,
     pub preview: Option<TextureHandle>,
     original_preview: Option<TextureHandle>,
     pub compare_original: bool,
@@ -91,6 +92,7 @@ impl PortraitWorkspace {
             selected: 0,
             apply_to_all: false,
             settings: Vec::new(),
+            quick_look: None,
             preview: None,
             original_preview: None,
             compare_original: false,
@@ -121,7 +123,10 @@ impl PortraitWorkspace {
             }
             Ok(faces) => {
                 workspace.state = PortraitState::Ready;
-                workspace.settings = vec![PortraitSettings::default(); faces.len()];
+                let natural = builtin_portrait_settings("natural").ok();
+                workspace.settings =
+                    vec![natural.clone().unwrap_or_else(PortraitSettings::default); faces.len()];
+                workspace.quick_look = natural.map(|_| "natural".into());
                 workspace.faces = faces;
             }
             Err(error) => {
@@ -170,6 +175,7 @@ impl PortraitWorkspace {
         self.state = PortraitState::Idle;
         self.faces.clear();
         self.settings.clear();
+        self.quick_look = None;
         self.preview = None;
         self.original_preview = None;
         self.error = None;
@@ -568,8 +574,11 @@ impl EditorApp {
         }
         let mut open = true;
         let mut apply = false;
+        let mut export_after_apply = false;
         let mut sync_batch = false;
         let mut cancel = false;
+        let mut quick_look = None;
+        let mut reset_all = false;
         let shift_compare =
             context.input(|input| input.modifiers.shift && input.key_down(egui::Key::P));
         egui::Window::new(tr("Portrait Retouch"))
@@ -594,200 +603,269 @@ impl EditorApp {
                     }
                     if !workspace.faces.is_empty() {
                         let face_count = workspace.faces.len();
-                        ui.horizontal_wrapped(|ui| {
-                            for index in 0..face_count {
-                                let selected = index == workspace.selected;
-                                if ui
-                                    .selectable_label(
-                                        selected,
-                                        format!("{} {}", tr("Face"), index + 1),
-                                    )
-                                    .clicked()
-                                {
-                                    workspace.selected = index;
-                                    workspace.invalidate_preview();
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(tr("Face detected locally"))
+                                    .strong()
+                                    .color(egui::Color32::from_rgb(95, 220, 165)),
+                            );
+                            if face_count > 1 {
+                                ui.separator();
+                                for index in 0..face_count {
+                                    let selected = index == workspace.selected;
+                                    if ui
+                                        .selectable_label(
+                                            selected,
+                                            format!("{} {}", tr("Face"), index + 1),
+                                        )
+                                        .clicked()
+                                    {
+                                        workspace.selected = index;
+                                        workspace.invalidate_preview();
+                                    }
                                 }
                             }
                         });
+                        ui.label(
+                            RichText::new(tr("Processed locally. Nothing is uploaded."))
+                                .size(11.0)
+                                .color(theme::MUTED),
+                        );
+                        ui.add_space(6.0);
+                        ui.label(RichText::new(tr("Quick portrait looks")).strong());
+                        ui.horizontal_wrapped(|ui| {
+                            for (slug, label) in [
+                                ("natural", tr("Natural (Recommended)")),
+                                ("clear-portrait", tr("Clear Portrait")),
+                                ("warm", tr("Warm")),
+                            ] {
+                                let selected = workspace.quick_look.as_deref() == Some(slug);
+                                if ui
+                                    .add(
+                                        egui::Button::new(label)
+                                            .selected(selected)
+                                            .min_size(vec2(104.0, 26.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    quick_look = Some(slug);
+                                }
+                            }
+                            if widgets::button(ui, tr("Reset all")).clicked() {
+                                reset_all = true;
+                            }
+                        });
+                        ui.add_space(4.0);
                         ui.separator();
                         if let Some(settings) = workspace.selected_settings_mut() {
                             let mut changed = false;
-                            ui.collapsing(tr("Skin"), |ui| {
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Smooth"),
-                                    &mut settings.skin_smooth,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Texture"),
-                                    &mut settings.skin_texture,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Even tone"),
-                                    &mut settings.skin_tone,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Blemish"),
-                                    &mut settings.blemish,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                            });
-                            ui.collapsing(tr("Eyes & Lips"), |ui| {
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Eye brightness"),
-                                    &mut settings.eye_brightness,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Eye clarity"),
-                                    &mut settings.eye_clarity,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Dark circles"),
-                                    &mut settings.dark_circles,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Teeth whitening"),
-                                    &mut settings.teeth_whiten,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Lip tint"),
-                                    &mut settings.lip_tint,
-                                    0.0..=100.0,
-                                    "%",
-                                );
-                            });
-                            ui.collapsing(tr("Shape & features"), |ui| {
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Face width"),
-                                    &mut settings.face_width,
-                                    -100.0..=100.0,
-                                    "",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Jaw"),
-                                    &mut settings.jaw,
-                                    -100.0..=100.0,
-                                    "",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Chin"),
-                                    &mut settings.chin,
-                                    -100.0..=100.0,
-                                    "",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Eye size"),
-                                    &mut settings.eye_size,
-                                    -100.0..=100.0,
-                                    "",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Nose width"),
-                                    &mut settings.nose_width,
-                                    -100.0..=100.0,
-                                    "",
-                                );
-                                changed |= portrait_slider(
-                                    ui,
-                                    tr("Lip shape"),
-                                    &mut settings.lip_shape,
-                                    -100.0..=100.0,
-                                    "",
-                                );
-                            });
+                            egui::CollapsingHeader::new(tr("Skin"))
+                                .default_open(true)
+                                .show_background(true)
+                                .show(ui, |ui| {
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Smooth"),
+                                        &mut settings.skin_smooth,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Texture"),
+                                        &mut settings.skin_texture,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Even tone"),
+                                        &mut settings.skin_tone,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Blemish"),
+                                        &mut settings.blemish,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                });
+                            egui::CollapsingHeader::new(tr("Eyes & Lips"))
+                                .show_background(true)
+                                .show(ui, |ui| {
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Eye brightness"),
+                                        &mut settings.eye_brightness,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Eye clarity"),
+                                        &mut settings.eye_clarity,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Dark circles"),
+                                        &mut settings.dark_circles,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Teeth whitening"),
+                                        &mut settings.teeth_whiten,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Lip tint"),
+                                        &mut settings.lip_tint,
+                                        0.0..=100.0,
+                                        "%",
+                                    );
+                                });
+                            egui::CollapsingHeader::new(tr("Shape & features"))
+                                .show_background(true)
+                                .show(ui, |ui| {
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Face width"),
+                                        &mut settings.face_width,
+                                        -100.0..=100.0,
+                                        "",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Jaw"),
+                                        &mut settings.jaw,
+                                        -100.0..=100.0,
+                                        "",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Chin"),
+                                        &mut settings.chin,
+                                        -100.0..=100.0,
+                                        "",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Eye size"),
+                                        &mut settings.eye_size,
+                                        -100.0..=100.0,
+                                        "",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Nose width"),
+                                        &mut settings.nose_width,
+                                        -100.0..=100.0,
+                                        "",
+                                    );
+                                    changed |= portrait_slider(
+                                        ui,
+                                        tr("Lip shape"),
+                                        &mut settings.lip_shape,
+                                        -100.0..=100.0,
+                                        "",
+                                    );
+                                });
                             if changed {
+                                workspace.quick_look = None;
                                 workspace.invalidate_preview();
                             }
+                        }
+                        if let Some(slug) = quick_look {
+                            if let Err(error) = apply_portrait_quick_look(&mut workspace, slug) {
+                                workspace.error = Some(error.to_string());
+                            }
+                        }
+                        if reset_all {
+                            reset_portrait_look(&mut workspace);
                         }
                         ui.separator();
                         let mut liquify_changed = false;
                         if let Some(liquify) = &mut workspace.liquify {
-                            ui.collapsing(tr("Manual liquify"), |ui| {
-                                ui.horizontal(|ui| {
-                                    for (mode, label) in [
-                                        (LiquifyMode::Push, tr("Push")),
-                                        (LiquifyMode::Pinch, tr("Pinch")),
-                                        (LiquifyMode::Bloat, tr("Bloat")),
-                                    ] {
-                                        if ui
-                                            .selectable_label(liquify.brush.mode == mode, label)
-                                            .clicked()
-                                        {
-                                            liquify.brush.mode = mode;
+                            egui::CollapsingHeader::new(tr("Manual liquify"))
+                                .show_background(true)
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        for (mode, label) in [
+                                            (LiquifyMode::Push, tr("Push")),
+                                            (LiquifyMode::Pinch, tr("Pinch")),
+                                            (LiquifyMode::Bloat, tr("Bloat")),
+                                        ] {
+                                            if ui
+                                                .selectable_label(liquify.brush.mode == mode, label)
+                                                .clicked()
+                                            {
+                                                liquify.brush.mode = mode;
+                                            }
                                         }
+                                    });
+                                    let mut changed = false;
+                                    changed |= ui
+                                        .add(
+                                            widgets::Slider::new(
+                                                &mut liquify.brush.diameter,
+                                                8.0..=800.0,
+                                            )
+                                            .text(tr("Size"))
+                                            .suffix(" px"),
+                                        )
+                                        .changed();
+                                    changed |= ui
+                                        .add(
+                                            widgets::Slider::new(
+                                                &mut liquify.brush.strength,
+                                                1.0..=100.0,
+                                            )
+                                            .text(tr("Strength"))
+                                            .suffix("%"),
+                                        )
+                                        .changed();
+                                    changed |= ui
+                                        .add(
+                                            widgets::Slider::new(
+                                                &mut liquify.brush.hardness,
+                                                0.0..=100.0,
+                                            )
+                                            .text(tr("Hardness"))
+                                            .suffix("%"),
+                                        )
+                                        .changed();
+                                    if changed {
+                                        liquify_changed = true;
                                     }
                                 });
-                                let mut changed = false;
-                                changed |= ui
-                                    .add(
-                                        widgets::Slider::new(
-                                            &mut liquify.brush.diameter,
-                                            8.0..=800.0,
-                                        )
-                                        .text(tr("Size"))
-                                        .suffix(" px"),
-                                    )
-                                    .changed();
-                                changed |= ui
-                                    .add(
-                                        widgets::Slider::new(
-                                            &mut liquify.brush.strength,
-                                            1.0..=100.0,
-                                        )
-                                        .text(tr("Strength"))
-                                        .suffix("%"),
-                                    )
-                                    .changed();
-                                changed |= ui
-                                    .add(
-                                        widgets::Slider::new(
-                                            &mut liquify.brush.hardness,
-                                            0.0..=100.0,
-                                        )
-                                        .text(tr("Hardness"))
-                                        .suffix("%"),
-                                    )
-                                    .changed();
-                                if changed {
-                                    liquify_changed = true;
-                                }
-                            });
                         }
                         if liquify_changed {
                             workspace.invalidate_preview();
                         }
                         ui.separator();
-                        let compare_button = ui.add(egui::Button::new(tr("Hold to compare")));
-                        let hold_compare = compare_button.hovered()
-                            && context.input(|input| input.pointer.primary_down());
+                        let mut hold_compare = false;
+                        ui.horizontal(|ui| {
+                            let compare_button = ui
+                                .add_sized(
+                                    vec2((ui.available_width() - 118.0).max(110.0), 28.0),
+                                    widgets::Button::new(tr("Hold to compare")),
+                                )
+                                .on_hover_text(tr("Show original (hold Shift+P)"));
+                            hold_compare = compare_button.hovered()
+                                && context.input(|input| input.pointer.primary_down());
+                            widgets::checkbox(
+                                ui,
+                                &mut workspace.compare_original,
+                                tr("Show original"),
+                            );
+                        });
                         let texture = if workspace.compare_original || shift_compare || hold_compare
                         {
                             workspace.original_preview.as_ref()
@@ -796,7 +874,7 @@ impl EditorApp {
                         };
                         if let Some(texture) = texture {
                             let size = texture.size_vec2();
-                            let width = 380.0_f32.min(size.x);
+                            let width = 260.0_f32.min(size.x);
                             let scale = width / size.x.max(1.0);
                             let display = vec2(width, size.y * scale);
                             let (rect, response) = ui.allocate_exact_size(display, Sense::drag());
@@ -846,18 +924,17 @@ impl EditorApp {
                                 workspace.invalidate_preview();
                             }
                         }
-                        widgets::checkbox(
-                            ui,
-                            &mut workspace.compare_original,
-                            tr("Show original (hold Shift+P)"),
-                        );
                         ui.separator();
                         ui.horizontal_wrapped(|ui| {
-                            if widgets::primary_button(ui, tr("Apply")).clicked() {
-                                apply = true;
-                            }
                             if widgets::button(ui, tr("Cancel")).clicked() {
                                 cancel = true;
+                            }
+                            if widgets::button(ui, tr("Apply")).clicked() {
+                                apply = true;
+                            }
+                            if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
+                                apply = true;
+                                export_after_apply = true;
                             }
                             let mut reset_liquify = false;
                             if let Some(liquify) = &mut workspace.liquify
@@ -887,60 +964,75 @@ impl EditorApp {
                         ui.label(tr("No face detected. Manual liquify is still available."));
                         let mut liquify_changed = false;
                         if let Some(liquify) = &mut workspace.liquify {
-                            ui.collapsing(tr("Manual liquify"), |ui| {
-                                ui.horizontal(|ui| {
-                                    for (mode, label) in [
-                                        (LiquifyMode::Push, tr("Push")),
-                                        (LiquifyMode::Pinch, tr("Pinch")),
-                                        (LiquifyMode::Bloat, tr("Bloat")),
-                                    ] {
-                                        if ui
-                                            .selectable_label(liquify.brush.mode == mode, label)
-                                            .clicked()
-                                        {
-                                            liquify.brush.mode = mode;
+                            egui::CollapsingHeader::new(tr("Manual liquify"))
+                                .show_background(true)
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        for (mode, label) in [
+                                            (LiquifyMode::Push, tr("Push")),
+                                            (LiquifyMode::Pinch, tr("Pinch")),
+                                            (LiquifyMode::Bloat, tr("Bloat")),
+                                        ] {
+                                            if ui
+                                                .selectable_label(liquify.brush.mode == mode, label)
+                                                .clicked()
+                                            {
+                                                liquify.brush.mode = mode;
+                                            }
                                         }
-                                    }
+                                    });
+                                    liquify_changed |= ui
+                                        .add(
+                                            widgets::Slider::new(
+                                                &mut liquify.brush.diameter,
+                                                8.0..=800.0,
+                                            )
+                                            .text(tr("Size"))
+                                            .suffix(" px"),
+                                        )
+                                        .changed();
+                                    liquify_changed |= ui
+                                        .add(
+                                            widgets::Slider::new(
+                                                &mut liquify.brush.strength,
+                                                1.0..=100.0,
+                                            )
+                                            .text(tr("Strength"))
+                                            .suffix("%"),
+                                        )
+                                        .changed();
+                                    liquify_changed |= ui
+                                        .add(
+                                            widgets::Slider::new(
+                                                &mut liquify.brush.hardness,
+                                                0.0..=100.0,
+                                            )
+                                            .text(tr("Hardness"))
+                                            .suffix("%"),
+                                        )
+                                        .changed();
                                 });
-                                liquify_changed |= ui
-                                    .add(
-                                        widgets::Slider::new(
-                                            &mut liquify.brush.diameter,
-                                            8.0..=800.0,
-                                        )
-                                        .text(tr("Size"))
-                                        .suffix(" px"),
-                                    )
-                                    .changed();
-                                liquify_changed |= ui
-                                    .add(
-                                        widgets::Slider::new(
-                                            &mut liquify.brush.strength,
-                                            1.0..=100.0,
-                                        )
-                                        .text(tr("Strength"))
-                                        .suffix("%"),
-                                    )
-                                    .changed();
-                                liquify_changed |= ui
-                                    .add(
-                                        widgets::Slider::new(
-                                            &mut liquify.brush.hardness,
-                                            0.0..=100.0,
-                                        )
-                                        .text(tr("Hardness"))
-                                        .suffix("%"),
-                                    )
-                                    .changed();
-                            });
                         }
                         if liquify_changed {
                             workspace.invalidate_preview();
                         }
                         ui.separator();
-                        let compare_button = ui.add(egui::Button::new(tr("Hold to compare")));
-                        let hold_compare = compare_button.hovered()
-                            && context.input(|input| input.pointer.primary_down());
+                        let mut hold_compare = false;
+                        ui.horizontal(|ui| {
+                            let compare_button = ui
+                                .add_sized(
+                                    vec2((ui.available_width() - 118.0).max(110.0), 28.0),
+                                    widgets::Button::new(tr("Hold to compare")),
+                                )
+                                .on_hover_text(tr("Show original (hold Shift+P)"));
+                            hold_compare = compare_button.hovered()
+                                && context.input(|input| input.pointer.primary_down());
+                            widgets::checkbox(
+                                ui,
+                                &mut workspace.compare_original,
+                                tr("Show original"),
+                            );
+                        });
                         let texture = if workspace.compare_original || shift_compare || hold_compare
                         {
                             workspace.original_preview.as_ref()
@@ -949,7 +1041,7 @@ impl EditorApp {
                         };
                         if let Some(texture) = texture {
                             let size = texture.size_vec2();
-                            let width = 380.0_f32.min(size.x);
+                            let width = 260.0_f32.min(size.x);
                             let scale = width / size.x.max(1.0);
                             let display = vec2(width, size.y * scale);
                             let (rect, response) = ui.allocate_exact_size(display, Sense::drag());
@@ -999,18 +1091,17 @@ impl EditorApp {
                                 workspace.invalidate_preview();
                             }
                         }
-                        widgets::checkbox(
-                            ui,
-                            &mut workspace.compare_original,
-                            tr("Show original (hold Shift+P)"),
-                        );
                         ui.separator();
                         ui.horizontal(|ui| {
-                            if widgets::primary_button(ui, tr("Apply")).clicked() {
-                                apply = true;
-                            }
                             if widgets::button(ui, tr("Cancel")).clicked() {
                                 cancel = true;
+                            }
+                            if widgets::button(ui, tr("Apply")).clicked() {
+                                apply = true;
+                            }
+                            if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
+                                apply = true;
+                                export_after_apply = true;
                             }
                             let mut reset_liquify = false;
                             if let Some(liquify) = &mut workspace.liquify
@@ -1041,7 +1132,13 @@ impl EditorApp {
         }
         if apply {
             match self.apply_portrait_workspace(&workspace) {
-                Ok(()) => return,
+                Ok(()) => {
+                    if export_after_apply {
+                        self.dialog = Some(super::Dialog::Export);
+                        self.export_changed = true;
+                    }
+                    return;
+                }
                 Err(error) => {
                     self.error = Some(format!("{error:#}"));
                     self.portrait = Some(workspace);
@@ -1055,6 +1152,37 @@ impl EditorApp {
         }
         self.portrait = Some(workspace);
     }
+}
+
+fn builtin_portrait_settings(slug: &str) -> Result<PortraitSettings> {
+    PresetV1::builtin(slug)?
+        .portrait
+        .with_context(|| format!("Built-in preset {slug} has no portrait settings"))
+}
+
+fn apply_portrait_quick_look(workspace: &mut PortraitWorkspace, slug: &str) -> Result<()> {
+    if workspace.settings.is_empty() {
+        anyhow::bail!(tr("No face detected"));
+    }
+    let settings = builtin_portrait_settings(slug)?;
+    for portrait in &mut workspace.settings {
+        *portrait = settings.clone();
+    }
+    workspace.quick_look = Some(slug.into());
+    workspace.invalidate_preview();
+    Ok(())
+}
+
+fn reset_portrait_look(workspace: &mut PortraitWorkspace) {
+    for settings in &mut workspace.settings {
+        *settings = PortraitSettings::default();
+    }
+    if let Some(liquify) = &mut workspace.liquify {
+        liquify.strokes.clear();
+    }
+    workspace.quick_look = None;
+    workspace.compare_original = false;
+    workspace.invalidate_preview();
 }
 
 fn portrait_sync_preset(workspace: &PortraitWorkspace) -> Result<PresetV1> {
@@ -1123,6 +1251,48 @@ mod tests {
             points,
             presence: 0.99,
         }
+    }
+
+    #[test]
+    fn face_analysis_starts_with_the_natural_recommended_look() {
+        let source = RgbaImage::new(64, 64);
+        let workspace =
+            PortraitWorkspace::from_analysis_with_source(Ok(vec![synthetic_landmarks()]), source)
+                .unwrap();
+
+        assert_eq!(workspace.quick_look.as_deref(), Some("natural"));
+        assert_eq!(
+            workspace.settings[0],
+            builtin_portrait_settings("natural").unwrap()
+        );
+        assert!(!workspace.settings[0].is_identity());
+    }
+
+    #[test]
+    fn resetting_the_portrait_look_restores_identity_and_clears_liquify() {
+        let source = RgbaImage::new(64, 64);
+        let mut workspace =
+            PortraitWorkspace::from_analysis_with_source(Ok(vec![synthetic_landmarks()]), source)
+                .unwrap();
+        workspace
+            .liquify
+            .as_mut()
+            .unwrap()
+            .strokes
+            .push(NormalizedLiquifyStroke {
+                from: [0.4, 0.4],
+                to: [0.5, 0.5],
+                mode: LiquifyMode::Push,
+                diameter: 120.0,
+                strength: 50.0,
+                hardness: 60.0,
+            });
+
+        reset_portrait_look(&mut workspace);
+
+        assert!(workspace.settings.iter().all(PortraitSettings::is_identity));
+        assert!(workspace.liquify.as_ref().unwrap().strokes.is_empty());
+        assert!(workspace.quick_look.is_none());
     }
 
     #[test]

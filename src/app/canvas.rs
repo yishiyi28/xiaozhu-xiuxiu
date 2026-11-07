@@ -1656,16 +1656,37 @@ fn welcome_action(
         egui::FontId::proportional(if compact { 11.0 } else { 12.0 }),
         theme::MUTED,
     );
-    ui.painter().text(
-        rect.right_bottom() - vec2(if compact { 12.0 } else { 16.0 }, 10.0),
-        egui::Align2::RIGHT_BOTTOM,
+    let cta_label = if primary {
+        tr("Open photo")
+    } else {
+        tr("Open")
+    };
+    let cta_width = if compact { 72.0 } else { 88.0 };
+    let cta_padding = if compact { 12.0 } else { 16.0 };
+    let cta_rect = Rect::from_min_size(
+        rect.right_bottom() - vec2(cta_padding + cta_width, cta_padding + 22.0),
+        vec2(cta_width, 22.0),
+    );
+    ui.painter().rect(
+        cta_rect,
+        11.0,
         if primary {
-            tr("Start here")
+            theme::ACCENT
         } else {
-            tr("Open")
+            Color32::from_white_alpha(22)
         },
+        Stroke::new(
+            0.8_f32,
+            Color32::from_white_alpha(if primary { 55 } else { 28 }),
+        ),
+        StrokeKind::Inside,
+    );
+    ui.painter().text(
+        cta_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        cta_label,
         egui::FontId::proportional(11.5),
-        if primary { theme::ACCENT } else { theme::MUTED },
+        if primary { theme::TEXT } else { theme::MUTED },
     );
     response.widget_info(|| {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), title)
@@ -1713,11 +1734,14 @@ fn draw_portrait_overlay(
     origin: Pos2,
     zoom: f32,
 ) {
-    if workspace.state != PortraitState::Ready {
+    if workspace.state != PortraitState::Ready || workspace.faces.len() <= 1 {
         return;
     }
     for (index, face) in workspace.faces.iter().enumerate() {
-        let selected = index == workspace.selected;
+        if index != workspace.selected {
+            continue;
+        }
+        let selected = true;
         let color = if selected {
             Color32::from_rgb(95, 220, 165)
         } else if face.presence < 0.65 {

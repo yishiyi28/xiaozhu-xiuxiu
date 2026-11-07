@@ -208,11 +208,17 @@ impl EditorApp {
                             });
                             ui.separator();
                             ui.add_enabled_ui(has_doc, |ui| {
-                                item(ui, tr("Save"), "Ctrl+S", "save", &mut action);
-                                item(ui, tr("Save As…"), "Ctrl+Shift+S", "save_as", &mut action);
+                                item(ui, tr("Save project"), "Ctrl+S", "save", &mut action);
                                 item(
                                     ui,
-                                    tr("Export Image…"),
+                                    tr("Save project as…"),
+                                    "Ctrl+Shift+S",
+                                    "save_as",
+                                    &mut action,
+                                );
+                                item(
+                                    ui,
+                                    tr("Export photo…"),
                                     "Ctrl+Alt+Shift+S",
                                     "export",
                                     &mut action,
@@ -549,6 +555,7 @@ impl EditorApp {
             || self.close_app
             || self.close_tab.is_some()
             || self.develop_close_requested.is_some();
+        let can_export = self.session().is_some() && !developing;
         egui::TopBottomPanel::top("project_tabs")
             .exact_height(46.0)
             .frame(
@@ -567,7 +574,7 @@ impl EditorApp {
                             action = Some("new");
                         }
                         ui.separator();
-                        let available = (ui.available_width() - 228.0).max(150.0);
+                        let available = (ui.available_width() - 330.0).max(150.0);
                         ui.allocate_ui(egui::vec2(available, 28.0), |ui| {
                             egui::ScrollArea::horizontal()
                                 .id_salt("tabs_scroll")
@@ -659,6 +666,14 @@ impl EditorApp {
                             ui.add_enabled_ui(
                                 self.develop.as_ref().is_none_or(|d| d.ready()),
                                 |ui| {
+                                    if can_export
+                                        && widgets::primary_button(ui, tr("Export photo")).clicked()
+                                    {
+                                        action = Some("export");
+                                    }
+                                    if can_export {
+                                        ui.separator();
+                                    }
                                     if widgets::button(ui, "−")
                                         .on_hover_text(tr("Zoom out"))
                                         .clicked()

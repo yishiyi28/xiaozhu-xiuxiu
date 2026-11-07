@@ -3118,6 +3118,7 @@ fn welcome_renders_all_primary_actions_at_minimum_window_size() {
         "Single portrait",
         "Batch export",
         "Professional edit",
+        "Open photo",
         "One-click portrait templates",
         "More ways to begin",
     ] {
@@ -3147,6 +3148,24 @@ fn welcome_renders_all_primary_actions_at_minimum_window_size() {
         assert!(position.y < 560.0, "{label} is clipped vertically");
         assert!(position.x < 600.0, "{label} overflows the center panel");
     }
+}
+
+#[test]
+fn editor_top_bar_exposes_export_photo() {
+    let (context, mut app) = app();
+    app.dimensions = [64, 48];
+    app.new_document();
+    frame(&context, &mut app);
+    let output = frame(&context, &mut app);
+    assert!(output.shapes.iter().any(|shape| {
+        matches!(
+            &shape.shape,
+            egui::Shape::Text(text) if text.galley.text().contains("Export photo")
+        )
+    }));
+
+    click_painted_text(&context, &mut app, "Export photo");
+    assert!(app.dialog == Some(Dialog::Export));
 }
 
 #[test]
