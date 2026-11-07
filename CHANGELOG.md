@@ -1,5 +1,14 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.8.2
+
+- Apply a natural, photo-friendly portrait look by default after local face detection.
+- Add one-click Natural, Clear Portrait and Warm looks inside Portrait Retouch, with a full reset.
+- Add Apply & Export so portrait retouching can flow directly into the export dialog.
+- Add a persistent Export Photo action to the editor toolbar and clarify project saving versus photo export.
+- Make portrait category headers easier to click, keep the action bar visible at standard window sizes, and reduce face-overlay clutter.
+- Strengthen the welcome screen's Open Photo call to action and keep the local-processing privacy message visible.
+
 ## 0.8.1
 
 - Allow AI upscale backend and model settings to be configured without an open document, from both Edit and Batch Export.

@@ -124,8 +124,7 @@ impl PortraitWorkspace {
             Ok(faces) => {
                 workspace.state = PortraitState::Ready;
                 let natural = builtin_portrait_settings("natural").ok();
-                workspace.settings =
-                    vec![natural.clone().unwrap_or_else(PortraitSettings::default); faces.len()];
+                workspace.settings = vec![natural.clone().unwrap_or_default(); faces.len()];
                 workspace.quick_look = natural.map(|_| "natural".into());
                 workspace.faces = faces;
             }
@@ -782,10 +781,10 @@ impl EditorApp {
                                 workspace.invalidate_preview();
                             }
                         }
-                        if let Some(slug) = quick_look {
-                            if let Err(error) = apply_portrait_quick_look(&mut workspace, slug) {
-                                workspace.error = Some(error.to_string());
-                            }
+                        if let Some(slug) = quick_look
+                            && let Err(error) = apply_portrait_quick_look(&mut workspace, slug)
+                        {
+                            workspace.error = Some(error.to_string());
                         }
                         if reset_all {
                             reset_portrait_look(&mut workspace);
