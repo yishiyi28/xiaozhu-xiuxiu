@@ -1,5 +1,12 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.8.3
+
+- Fix one-click portrait template previews allowing Export Photo before the template was applied, which could export the unchanged source image.
+- Disable global export and shortcuts while template, portrait, or preset previews are open.
+- Add Apply & Export to the portrait template preview so the intended apply-then-export flow is a single action.
+- Add regression coverage proving template previews cannot bypass application and that exported template output differs from the source image.
+
 ## 0.8.2
 
 - Apply a natural, photo-friendly portrait look by default after local face detection.
