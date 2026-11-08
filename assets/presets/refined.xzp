@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "精致人像",
+  "color": {
+    "exposure": 0.16,
+    "contrast": 7,
+    "highlights": -12,
+    "shadows": 14,
+    "temperature": 2,
+    "vibrance": 12
+  },
+  "portrait": {
+    "skin_smooth": 26,
+    "skin_texture": 22,
+    "skin_tone": 12,
+    "blemish": 20,
+    "eye_brightness": 10,
+    "eye_clarity": 12,
+    "dark_circles": 12,
+    "teeth_whiten": 8,
+    "lip_tint": 10,
+    "face_width": -4,
+    "jaw": -3,
+    "chin": -2,
+    "eye_size": 4,
+    "nose_width": -2,
+    "lip_shape": 2
+  }
+}

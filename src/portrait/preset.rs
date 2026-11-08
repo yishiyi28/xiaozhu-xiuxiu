@@ -18,8 +18,9 @@ use super::{
     types::FaceLandmarks,
 };
 
-pub const BUILTIN_NAMES: [&str; 8] = [
+pub const BUILTIN_NAMES: [&str; 9] = [
     "natural",
+    "refined",
     "clear-portrait",
     "warm",
     "cool",
@@ -111,6 +112,7 @@ impl PresetV1 {
     pub fn builtin(name: &str) -> Result<Self> {
         let data = match name {
             "natural" => include_str!("../../assets/presets/natural.xzp"),
+            "refined" => include_str!("../../assets/presets/refined.xzp"),
             "clear-portrait" => include_str!("../../assets/presets/clear-portrait.xzp"),
             "warm" => include_str!("../../assets/presets/warm.xzp"),
             "cool" => include_str!("../../assets/presets/cool.xzp"),
@@ -150,6 +152,77 @@ impl PresetV1 {
             }),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PresetStrength {
+    Light,
+    #[default]
+    Standard,
+    Strong,
+}
+
+impl PresetStrength {
+    pub fn factor(self) -> f32 {
+        match self {
+            Self::Light => 0.65,
+            Self::Standard => 1.0,
+            Self::Strong => 1.35,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Light => "Light",
+            Self::Standard => "Standard",
+            Self::Strong => "Strong",
+        }
+    }
+}
+
+pub fn scale_preset(preset: &PresetV1, strength: PresetStrength) -> PresetV1 {
+    let factor = strength.factor();
+    let mut scaled = preset.clone();
+    if let Some(color) = &mut scaled.color {
+        for (value, range) in [
+            (&mut color.exposure, -5.0..=5.0),
+            (&mut color.contrast, -100.0..=100.0),
+            (&mut color.highlights, -100.0..=100.0),
+            (&mut color.shadows, -100.0..=100.0),
+            (&mut color.whites, -100.0..=100.0),
+            (&mut color.blacks, -100.0..=100.0),
+            (&mut color.temperature, -100.0..=100.0),
+            (&mut color.tint, -100.0..=100.0),
+            (&mut color.vibrance, -100.0..=100.0),
+            (&mut color.saturation, -100.0..=100.0),
+            (&mut color.grain, 0.0..=100.0),
+            (&mut color.vignette, 0.0..=100.0),
+        ] {
+            *value = (*value * factor).clamp(*range.start(), *range.end());
+        }
+    }
+    if let Some(portrait) = &mut scaled.portrait {
+        for (value, range) in [
+            (&mut portrait.skin_smooth, 0.0..=100.0),
+            (&mut portrait.skin_texture, 0.0..=100.0),
+            (&mut portrait.skin_tone, 0.0..=100.0),
+            (&mut portrait.blemish, 0.0..=100.0),
+            (&mut portrait.eye_brightness, 0.0..=100.0),
+            (&mut portrait.eye_clarity, 0.0..=100.0),
+            (&mut portrait.dark_circles, 0.0..=100.0),
+            (&mut portrait.teeth_whiten, 0.0..=100.0),
+            (&mut portrait.lip_tint, 0.0..=100.0),
+            (&mut portrait.face_width, -100.0..=100.0),
+            (&mut portrait.jaw, -100.0..=100.0),
+            (&mut portrait.chin, -100.0..=100.0),
+            (&mut portrait.eye_size, -100.0..=100.0),
+            (&mut portrait.nose_width, -100.0..=100.0),
+            (&mut portrait.lip_shape, -100.0..=100.0),
+        ] {
+            *value = (*value * factor).clamp(*range.start(), *range.end());
+        }
+    }
+    scaled
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -553,6 +626,29 @@ mod tests {
         let error = serde_json::from_str::<PresetV1>(r#"{"schema_version":2,"name":"future"}"#)
             .unwrap_err();
         assert!(error.to_string().contains("schema_version"));
+    }
+
+    #[test]
+    fn preset_strength_scales_both_color_and_portrait_recipes() {
+        let preset = PresetV1::sample();
+        let light = scale_preset(&preset, PresetStrength::Light);
+        let standard = scale_preset(&preset, PresetStrength::Standard);
+        let strong = scale_preset(&preset, PresetStrength::Strong);
+
+        assert_eq!(standard, preset);
+        assert!((light.color.as_ref().unwrap().exposure - 0.1625).abs() < 0.0001);
+        assert!((light.portrait.as_ref().unwrap().skin_smooth - 16.25).abs() < 0.0001);
+        assert!((strong.color.as_ref().unwrap().temperature - 16.2).abs() < 0.0001);
+        assert!((strong.portrait.as_ref().unwrap().eye_size + 6.75).abs() < 0.0001);
+    }
+
+    #[test]
+    fn refined_builtin_is_available_and_has_visible_face_adjustments() {
+        let refined = PresetV1::builtin("refined").unwrap();
+        let portrait = refined.portrait.unwrap();
+        assert!(portrait.skin_smooth > 0.0);
+        assert!(portrait.eye_size > 0.0);
+        assert!(portrait.face_width < 0.0);
     }
 
     #[test]
