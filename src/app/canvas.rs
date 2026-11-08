@@ -728,10 +728,9 @@ impl EditorApp {
             }
             ui.add_space(if layout.compact { 10.0 } else { 18.0 });
             ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(tr("One-click portrait templates")).color(theme::MUTED),
-                );
+                ui.label(egui::RichText::new(tr("One-click finish")).color(theme::MUTED));
                 for (slug, label) in [
+                    ("refined", tr("Refined")),
                     ("natural", tr("Natural")),
                     ("clear-portrait", tr("Clear Portrait")),
                     ("warm", tr("Warm")),

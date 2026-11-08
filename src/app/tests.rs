@@ -3119,7 +3119,7 @@ fn welcome_renders_all_primary_actions_at_minimum_window_size() {
         "Batch export",
         "Professional edit",
         "Open photo",
-        "One-click portrait templates",
+        "One-click finish",
         "More ways to begin",
     ] {
         assert!(
@@ -3131,7 +3131,7 @@ fn welcome_renders_all_primary_actions_at_minimum_window_size() {
         "Single portrait",
         "Batch export",
         "Professional edit",
-        "One-click portrait templates",
+        "One-click finish",
         "More ways to begin",
         "Everything stays on this computer. No uploads, no account.",
     ] {
@@ -3223,6 +3223,23 @@ fn applied_template_export_is_not_the_original_image() {
 }
 
 #[test]
+fn status_bar_displays_the_latest_operation_status() {
+    let (context, mut app) = app();
+    app.dimensions = [64, 48];
+    app.new_document();
+    app.status = "Preset: Refined · Standard".into();
+
+    let output = frame(&context, &mut app);
+
+    assert!(output.shapes.iter().any(|shape| {
+        matches!(
+            &shape.shape,
+            egui::Shape::Text(text) if text.galley.text().contains("Preset: Refined · Standard")
+        )
+    }));
+}
+
+#[test]
 fn template_preview_must_be_applied_before_export() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/io/fixtures/rgb-strips.heic");
     let (context, mut app) = app();
@@ -3274,17 +3291,20 @@ fn welcome_template_review_previews_then_applies_as_one_step() {
         })
         .collect();
     for label in [
-        "Portrait templates",
+        "One-click finish",
         "Recommended for this photo",
-        "Show original",
+        "Original",
+        "After",
+        "Effect strength",
         "Apply template",
+        "Apply & Export…",
     ] {
         assert!(
             text.iter().any(|value| value.contains(label)),
             "Missing {label}"
         );
     }
-    for label in ["Portrait templates", "Show original", "Apply template"] {
+    for label in ["One-click finish", "Original", "After", "Apply template"] {
         let position = output
             .shapes
             .iter()

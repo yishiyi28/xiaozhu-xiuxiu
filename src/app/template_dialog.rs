@@ -6,7 +6,9 @@ use xuan::{
     i18n::tr,
     portrait::{
         inference::PortraitModels,
-        preset::{FacePolicy, PresetV1, apply_preset_to_document_with_faces},
+        preset::{
+            FacePolicy, PresetStrength, PresetV1, apply_preset_to_document_with_faces, scale_preset,
+        },
         types::FaceLandmarks,
     },
     render,
@@ -15,7 +17,8 @@ use xuan::{
 use super::{EditorApp, preset_dialog::preset_chip, widgets};
 
 const PREVIEW_MAX_EDGE: u32 = 720;
-const FEATURED_TEMPLATES: [(&str, &str); 3] = [
+const FEATURED_TEMPLATES: [(&str, &str); 4] = [
+    ("refined", "Refined"),
     ("natural", "Natural"),
     ("clear-portrait", "Clear Portrait"),
     ("warm", "Warm"),
@@ -25,12 +28,12 @@ pub struct TemplatePreviewState {
     base: Document,
     faces: Vec<FaceLandmarks>,
     selected: String,
+    strength: PresetStrength,
     recommended: &'static str,
     recommendation_reason: &'static str,
     original: TextureHandle,
     preview: Option<TextureHandle>,
-    preview_slug: Option<String>,
-    show_original: bool,
+    preview_key: Option<(String, PresetStrength)>,
     error: Option<String>,
 }
 
@@ -65,7 +68,7 @@ impl TemplatePreviewState {
         let id = layer.id;
         base.layers = vec![layer];
         base.select(id, false);
-        let (recommended, recommendation_reason) = recommend_template(&image);
+        let (recommended, recommendation_reason) = recommend_template(&image, !faces.is_empty());
         let selected = if FEATURED_TEMPLATES.iter().any(|(slug, _)| *slug == selected) {
             selected.to_owned()
         } else {
@@ -76,11 +79,11 @@ impl TemplatePreviewState {
             base,
             faces,
             selected,
+            strength: PresetStrength::Standard,
             recommended,
             recommendation_reason,
             preview: None,
-            preview_slug: None,
-            show_original: false,
+            preview_key: None,
             error: None,
         })
     }
@@ -89,18 +92,27 @@ impl TemplatePreviewState {
         if self.selected != slug {
             self.selected = slug.to_owned();
             self.preview = None;
-            self.preview_slug = None;
-            self.show_original = false;
+            self.preview_key = None;
+            self.error = None;
+        }
+    }
+
+    fn select_strength(&mut self, strength: PresetStrength) {
+        if self.strength != strength {
+            self.strength = strength;
+            self.preview = None;
+            self.preview_key = None;
             self.error = None;
         }
     }
 
     fn ensure_preview(&mut self, context: &egui::Context) {
-        if self.preview.is_some() && self.preview_slug.as_deref() == Some(&self.selected) {
+        let key = (self.selected.clone(), self.strength);
+        if self.preview.is_some() && self.preview_key.as_ref() == Some(&key) {
             return;
         }
         let result = (|| -> Result<RgbaImage> {
-            let preset = PresetV1::builtin(&self.selected)?;
+            let preset = scale_preset(&PresetV1::builtin(&self.selected)?, self.strength);
             let mut document = self.base.clone();
             apply_preset_to_document_with_faces(
                 &mut document,
@@ -117,11 +129,11 @@ impl TemplatePreviewState {
                     format!("template-preview-{}", self.base.id),
                     &image,
                 ));
-                self.preview_slug = Some(self.selected.clone());
+                self.preview_key = Some(key);
                 self.error = None;
             }
             Err(error) => {
-                self.preview_slug = Some(self.selected.clone());
+                self.preview_key = Some(key);
                 self.error = Some(format!("{error:#}"));
             }
         }
@@ -163,7 +175,7 @@ impl EditorApp {
         let mut cancel = false;
         let window_width = (context.content_rect().width() - 40.0).clamp(420.0, 720.0);
         let preview_height = (context.content_rect().height() - 280.0).clamp(160.0, 460.0);
-        widgets::Window::new(tr("Portrait templates"))
+        widgets::Window::new(tr("One-click finish"))
             .default_width(window_width)
             .open(&mut open)
             .show(context, |ui| {
@@ -197,6 +209,28 @@ impl EditorApp {
                         }
                     }
                 });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(tr("Effect strength"));
+                    let mut strength = state.strength;
+                    let labels = [
+                        tr("Light strength"),
+                        tr("Standard strength"),
+                        tr("Strong strength"),
+                    ];
+                    let response = widgets::segmented(
+                        ui,
+                        &mut strength,
+                        &[
+                            (PresetStrength::Light, labels[0]),
+                            (PresetStrength::Standard, labels[1]),
+                            (PresetStrength::Strong, labels[2]),
+                        ],
+                    );
+                    if response.changed() {
+                        state.select_strength(strength);
+                    }
+                });
                 ui.separator();
                 ui.label(
                     egui::RichText::new(format!(
@@ -206,24 +240,45 @@ impl EditorApp {
                     ))
                     .color(super::theme::MUTED),
                 );
+                if state.selected == "natural" {
+                    ui.label(
+                        egui::RichText::new(tr(
+                            "Natural is intentionally subtle. Choose Refined for a more visible result.",
+                        ))
+                        .size(11.0)
+                        .color(super::theme::MUTED),
+                    );
+                }
                 if let Some(error) = &state.error {
                     ui.colored_label(egui::Color32::from_rgb(230, 110, 100), error);
                 }
-                let texture = if state.show_original {
-                    &state.original
-                } else if let Some(preview) = &state.preview {
-                    preview
-                } else {
-                    &state.original
-                };
-                let texture_size = texture.size_vec2();
-                let scale = (ui.available_width().min(660.0) / texture_size.x)
-                    .min(preview_height / texture_size.y)
-                    .min(1.0);
+                let column_width = ((ui.available_width() - 8.0) * 0.5).max(120.0);
+                ui.columns(2, |columns| {
+                    columns[0].label(
+                        egui::RichText::new(tr("Original"))
+                            .size(11.0)
+                            .color(super::theme::MUTED),
+                    );
+                    let original_size = state.original.size_vec2();
+                    let original_scale = (column_width / original_size.x)
+                        .min(preview_height / original_size.y)
+                        .min(1.0);
+                    columns[0].image((state.original.id(), original_size * original_scale));
+
+                    columns[1].label(
+                        egui::RichText::new(tr("After"))
+                            .size(11.0)
+                            .color(super::theme::MUTED),
+                    );
+                    let after = state.preview.as_ref().unwrap_or(&state.original);
+                    let after_size = after.size_vec2();
+                    let after_scale = (column_width / after_size.x)
+                        .min(preview_height / after_size.y)
+                        .min(1.0);
+                    columns[1].image((after.id(), after_size * after_scale));
+                });
                 ui.add_space(6.0);
-                ui.image((texture.id(), texture_size * scale));
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut state.show_original, tr("Show original"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
                             apply = true;
@@ -241,7 +296,17 @@ impl EditorApp {
         if apply {
             match PresetV1::builtin(&state.selected) {
                 Ok(preset) => {
+                    let preset = scale_preset(&preset, state.strength);
+                    let preset_name = preset.name.clone();
                     self.apply_preset(preset);
+                    if self.error.is_none() {
+                        self.status = format!(
+                            "{}: {} · {}",
+                            tr("Preset"),
+                            preset_name,
+                            tr(state.strength.label())
+                        );
+                    }
                     if apply_and_export {
                         self.dialog = Some(super::Dialog::Export);
                         self.export_changed = true;
@@ -268,7 +333,7 @@ fn texture(context: &egui::Context, name: String, image: &RgbaImage) -> TextureH
     context.load_texture(name, color, TextureOptions::LINEAR)
 }
 
-fn recommend_template(image: &RgbaImage) -> (&'static str, &'static str) {
+fn recommend_template(image: &RgbaImage, has_face: bool) -> (&'static str, &'static str) {
     let mut weight = 0.0;
     let mut luma = 0.0;
     let mut warmth = 0.0;
@@ -303,6 +368,11 @@ fn recommend_template(image: &RgbaImage) -> (&'static str, &'static str) {
             "clear-portrait",
             "Bright photo: Clear Portrait restores dimension.",
         )
+    } else if has_face {
+        (
+            "refined",
+            "Portrait detected: Refined adds a visible but natural lift.",
+        )
     } else {
         ("natural", "Balanced light: Natural keeps the look subtle.")
     }
@@ -318,14 +388,35 @@ mod tests {
     }
 
     #[test]
-    fn recommendation_adapts_to_exposure_and_color_cast() {
-        assert_eq!(recommend_template(&image([20, 24, 28, 255])).0, "warm");
+    fn portrait_recommendation_defaults_to_refined_at_standard_strength() {
+        let context = egui::Context::default();
+        let state = TemplatePreviewState::from_image(
+            &context,
+            image([130, 132, 128, 255]),
+            "natural",
+            Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(state.strength, PresetStrength::Standard);
         assert_eq!(
-            recommend_template(&image([235, 238, 242, 255])).0,
+            recommend_template(&image([130, 132, 128, 255]), true).0,
+            "refined"
+        );
+    }
+
+    #[test]
+    fn recommendation_adapts_to_exposure_and_color_cast() {
+        assert_eq!(
+            recommend_template(&image([20, 24, 28, 255]), false).0,
+            "warm"
+        );
+        assert_eq!(
+            recommend_template(&image([235, 238, 242, 255]), false).0,
             "clear-portrait"
         );
         assert_eq!(
-            recommend_template(&image([130, 132, 128, 255])).0,
+            recommend_template(&image([130, 132, 128, 255]), false).0,
             "natural"
         );
     }

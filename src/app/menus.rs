@@ -194,6 +194,7 @@ impl EditorApp {
                             );
                             ui.menu_button(tr("Presets"), |ui| {
                                 for (label, command) in [
+                                    ("Refined", "preset_refined"),
                                     ("Natural", "preset_natural"),
                                     ("Clear Portrait", "preset_clear-portrait"),
                                     ("Warm", "preset_warm"),

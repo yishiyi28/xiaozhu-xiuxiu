@@ -353,11 +353,20 @@ impl EditorApp {
                     );
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let has_status = !self.status.is_empty();
                     ui.add(
                         egui::Label::new(
-                            RichText::new(self.tool.hint())
-                                .size(11.0)
-                                .color(theme::MUTED),
+                            RichText::new(if has_status {
+                                self.status.as_str()
+                            } else {
+                                self.tool.hint()
+                            })
+                            .size(11.0)
+                            .color(if has_status {
+                                theme::TEXT
+                            } else {
+                                theme::MUTED
+                            }),
                         )
                         .truncate(),
                     );

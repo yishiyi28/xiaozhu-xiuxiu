@@ -123,9 +123,9 @@ impl PortraitWorkspace {
             }
             Ok(faces) => {
                 workspace.state = PortraitState::Ready;
-                let natural = builtin_portrait_settings("natural").ok();
-                workspace.settings = vec![natural.clone().unwrap_or_default(); faces.len()];
-                workspace.quick_look = natural.map(|_| "natural".into());
+                let refined = builtin_portrait_settings("refined").ok();
+                workspace.settings = vec![refined.clone().unwrap_or_default(); faces.len()];
+                workspace.quick_look = refined.map(|_| "refined".into());
                 workspace.faces = faces;
             }
             Err(error) => {
@@ -634,8 +634,9 @@ impl EditorApp {
                         ui.label(RichText::new(tr("Quick portrait looks")).strong());
                         ui.horizontal_wrapped(|ui| {
                             for (slug, label) in [
-                                ("natural", tr("Natural (Recommended)")),
-                                ("clear-portrait", tr("Clear Portrait")),
+                                ("refined", tr("Refined recommended")),
+                                ("natural", tr("Natural")),
+                                ("clear-portrait", tr("Clear")),
                                 ("warm", tr("Warm")),
                             ] {
                                 let selected = workspace.quick_look.as_deref() == Some(slug);
@@ -643,14 +644,14 @@ impl EditorApp {
                                     .add(
                                         egui::Button::new(label)
                                             .selected(selected)
-                                            .min_size(vec2(104.0, 26.0)),
+                                            .min_size(vec2(70.0, 26.0)),
                                     )
                                     .clicked()
                                 {
                                     quick_look = Some(slug);
                                 }
                             }
-                            if widgets::button(ui, tr("Reset all")).clicked() {
+                            if widgets::button(ui, tr("Reset")).clicked() {
                                 reset_all = true;
                             }
                         });
@@ -659,7 +660,6 @@ impl EditorApp {
                         if let Some(settings) = workspace.selected_settings_mut() {
                             let mut changed = false;
                             egui::CollapsingHeader::new(tr("Skin"))
-                                .default_open(true)
                                 .show_background(true)
                                 .show(ui, |ui| {
                                     changed |= portrait_slider(
@@ -789,6 +789,18 @@ impl EditorApp {
                         if reset_all {
                             reset_portrait_look(&mut workspace);
                         }
+                        ui.horizontal_wrapped(|ui| {
+                            if widgets::button(ui, tr("Cancel")).clicked() {
+                                cancel = true;
+                            }
+                            if widgets::button(ui, tr("Apply")).clicked() {
+                                apply = true;
+                            }
+                            if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
+                                apply = true;
+                                export_after_apply = true;
+                            }
+                        });
                         ui.separator();
                         let mut liquify_changed = false;
                         if let Some(liquify) = &mut workspace.liquify {
@@ -925,16 +937,6 @@ impl EditorApp {
                         }
                         ui.separator();
                         ui.horizontal_wrapped(|ui| {
-                            if widgets::button(ui, tr("Cancel")).clicked() {
-                                cancel = true;
-                            }
-                            if widgets::button(ui, tr("Apply")).clicked() {
-                                apply = true;
-                            }
-                            if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
-                                apply = true;
-                                export_after_apply = true;
-                            }
                             let mut reset_liquify = false;
                             if let Some(liquify) = &mut workspace.liquify
                                 && widgets::button(ui, tr("Reset liquify")).clicked()
@@ -961,6 +963,18 @@ impl EditorApp {
                         });
                     } else {
                         ui.label(tr("No face detected. Manual liquify is still available."));
+                        ui.horizontal_wrapped(|ui| {
+                            if widgets::button(ui, tr("Cancel")).clicked() {
+                                cancel = true;
+                            }
+                            if widgets::button(ui, tr("Apply")).clicked() {
+                                apply = true;
+                            }
+                            if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
+                                apply = true;
+                                export_after_apply = true;
+                            }
+                        });
                         let mut liquify_changed = false;
                         if let Some(liquify) = &mut workspace.liquify {
                             egui::CollapsingHeader::new(tr("Manual liquify"))
@@ -1092,16 +1106,6 @@ impl EditorApp {
                         }
                         ui.separator();
                         ui.horizontal(|ui| {
-                            if widgets::button(ui, tr("Cancel")).clicked() {
-                                cancel = true;
-                            }
-                            if widgets::button(ui, tr("Apply")).clicked() {
-                                apply = true;
-                            }
-                            if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
-                                apply = true;
-                                export_after_apply = true;
-                            }
                             let mut reset_liquify = false;
                             if let Some(liquify) = &mut workspace.liquify
                                 && widgets::button(ui, tr("Reset liquify")).clicked()
@@ -1253,16 +1257,16 @@ mod tests {
     }
 
     #[test]
-    fn face_analysis_starts_with_the_natural_recommended_look() {
+    fn face_analysis_starts_with_the_refined_recommended_look() {
         let source = RgbaImage::new(64, 64);
         let workspace =
             PortraitWorkspace::from_analysis_with_source(Ok(vec![synthetic_landmarks()]), source)
                 .unwrap();
 
-        assert_eq!(workspace.quick_look.as_deref(), Some("natural"));
+        assert_eq!(workspace.quick_look.as_deref(), Some("refined"));
         assert_eq!(
             workspace.settings[0],
-            builtin_portrait_settings("natural").unwrap()
+            builtin_portrait_settings("refined").unwrap()
         );
         assert!(!workspace.settings[0].is_identity());
     }

@@ -552,7 +552,7 @@ impl EditorApp {
                     match template_dialog::TemplatePreviewState::from_document(
                         &self.context,
                         &document,
-                        "natural",
+                        "refined",
                         Some(Vec::new()),
                     ) {
                         Ok(state) => self.template_dialog = Some(state),

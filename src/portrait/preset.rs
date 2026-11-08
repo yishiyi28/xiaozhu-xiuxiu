@@ -173,9 +173,9 @@ impl PresetStrength {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Light => "Light",
-            Self::Standard => "Standard",
-            Self::Strong => "Strong",
+            Self::Light => "Light strength",
+            Self::Standard => "Standard strength",
+            Self::Strong => "Strong strength",
         }
     }
 }
@@ -647,8 +647,8 @@ mod tests {
         let refined = PresetV1::builtin("refined").unwrap();
         let portrait = refined.portrait.unwrap();
         assert!(portrait.skin_smooth > 0.0);
-        assert!(portrait.eye_size > 0.0);
-        assert!(portrait.face_width < 0.0);
+        assert!(portrait.eye_size >= 7.0);
+        assert!(portrait.face_width <= -8.0);
     }
 
     #[test]
