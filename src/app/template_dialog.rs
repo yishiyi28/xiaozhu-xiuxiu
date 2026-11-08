@@ -159,6 +159,7 @@ impl EditorApp {
         state.ensure_preview(context);
         let mut open = true;
         let mut apply = false;
+        let mut apply_and_export = false;
         let mut cancel = false;
         let window_width = (context.content_rect().width() - 40.0).clamp(420.0, 720.0);
         let preview_height = (context.content_rect().height() - 280.0).clamp(160.0, 460.0);
@@ -224,7 +225,11 @@ impl EditorApp {
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut state.show_original, tr("Show original"));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if widgets::primary_button(ui, tr("Apply template")).clicked() {
+                        if widgets::primary_button(ui, tr("Apply & Export…")).clicked() {
+                            apply = true;
+                            apply_and_export = true;
+                        }
+                        if widgets::button(ui, tr("Apply template")).clicked() {
                             apply = true;
                         }
                         if widgets::button(ui, tr("Cancel")).clicked() {
@@ -237,6 +242,10 @@ impl EditorApp {
             match PresetV1::builtin(&state.selected) {
                 Ok(preset) => {
                     self.apply_preset(preset);
+                    if apply_and_export {
+                        self.dialog = Some(super::Dialog::Export);
+                        self.export_changed = true;
+                    }
                     return;
                 }
                 Err(error) => state.error = Some(format!("{error:#}")),

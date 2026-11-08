@@ -1789,6 +1789,9 @@ impl EditorApp {
             self.close_app = true;
         }
         if self.dialog.is_none()
+            && self.template_dialog.is_none()
+            && self.portrait.is_none()
+            && self.preset_dialog.is_none()
             && self.develop_close_requested.is_none()
             && self.job.is_none()
             && self.error.is_none()

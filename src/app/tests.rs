@@ -3206,6 +3206,55 @@ fn welcome_portrait_and_template_entries_open_real_workflows() {
 }
 
 #[test]
+fn applied_template_export_is_not_the_original_image() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/io/fixtures/rgb-strips.heic");
+    let (_, mut app) = app();
+    app.open_path(&path, false);
+    let before = render::render(&app.session().unwrap().document);
+    app.apply_preset(xuan::portrait::preset::PresetV1::builtin("warm").unwrap());
+    let after = render::render(&app.session().unwrap().document);
+    assert_ne!(before.as_raw(), after.as_raw());
+
+    let directory = tempfile::tempdir().unwrap();
+    let exported = directory.path().join("template.png");
+    io::export(&app.session().unwrap().document, &exported, 95).unwrap();
+    let exported = io::import_image(&exported).unwrap();
+    assert_ne!(before.as_raw(), exported.as_raw());
+}
+
+#[test]
+fn template_preview_must_be_applied_before_export() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/io/fixtures/rgb-strips.heic");
+    let (context, mut app) = app();
+    app.open_welcome_template(&context, &path, "warm");
+    assert!(app.template_dialog.is_some());
+    frame(&context, &mut app);
+
+    click_painted_text(&context, &mut app, "Export photo");
+
+    assert!(
+        app.dialog.is_none(),
+        "Export opened while the template was still only a preview"
+    );
+}
+
+#[test]
+fn template_apply_and_export_opens_export_with_applied_layers() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/io/fixtures/rgb-strips.heic");
+    let (context, mut app) = app();
+    app.open_welcome_template(&context, &path, "warm");
+    assert!(app.template_dialog.is_some());
+    frame(&context, &mut app);
+
+    click_painted_text(&context, &mut app, "Apply & Export…");
+
+    assert!(app.template_dialog.is_none());
+    assert!(app.dialog == Some(Dialog::Export));
+    assert_eq!(app.session().unwrap().document.layers.len(), 2);
+    assert_eq!(app.session().unwrap().history.names().count(), 1);
+}
+
+#[test]
 fn welcome_template_review_previews_then_applies_as_one_step() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/io/fixtures/rgb-strips.heic");
     let (context, mut app) = app();

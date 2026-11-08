@@ -145,6 +145,9 @@ impl EditorApp {
             || self.batch_job.is_some()
             || self.upscale_job.is_some()
             || self.dialog.is_some()
+            || self.template_dialog.is_some()
+            || self.portrait.is_some()
+            || self.preset_dialog.is_some()
             || self.close_app
             || self.develop_close_requested.is_some()
             || self.close_tab.is_some();
@@ -551,6 +554,9 @@ impl EditorApp {
         let developing = self.develop.is_some();
         let blocked = self.job.is_some()
             || self.dialog.is_some()
+            || self.template_dialog.is_some()
+            || self.portrait.is_some()
+            || self.preset_dialog.is_some()
             || self.error.is_some()
             || self.close_app
             || self.close_tab.is_some()
