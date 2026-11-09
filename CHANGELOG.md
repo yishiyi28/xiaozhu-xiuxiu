@@ -1,5 +1,14 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.8.4
+
+- Add a Refined portrait look that combines skin retouching, eye and lip enhancement, and a subtle face-shape lift.
+- Add Light, Standard, and Strong portrait strengths, with Standard as the default and clear preset scaling for both color and face adjustments.
+- Rework one-click output with a refined recommendation, style selection, strength control, and side-by-side before/after preview.
+- Default both one-click output and the main Single Portrait workflow to Refined instead of the intentionally subtle Natural look.
+- Keep portrait apply/export actions visible while detailed controls are expanded, and show the latest applied preset in the status bar.
+- Add regression coverage for preset scaling, refined defaults, template-to-export behavior, and visible one-click results.
+
 ## 0.8.3
 
 - Fix one-click portrait template previews allowing Export Photo before the template was applied, which could export the unchanged source image.
