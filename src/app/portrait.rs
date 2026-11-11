@@ -9,6 +9,7 @@ use egui::{ColorImage, RichText, Sense, TextureHandle, TextureOptions, vec2};
 use image::RgbaImage;
 use uuid::Uuid;
 use xuan::{
+    document::{Adjustment, ColorGrade, Document, Layer},
     i18n::tr,
     portrait::{
         inference::PortraitModels,
@@ -73,6 +74,7 @@ pub struct PortraitWorkspace {
     pub apply_to_all: bool,
     pub settings: Vec<PortraitSettings>,
     quick_look: Option<String>,
+    look_color: Option<String>,
     pub preview: Option<TextureHandle>,
     original_preview: Option<TextureHandle>,
     pub compare_original: bool,
@@ -93,6 +95,7 @@ impl PortraitWorkspace {
             apply_to_all: false,
             settings: Vec::new(),
             quick_look: None,
+            look_color: None,
             preview: None,
             original_preview: None,
             compare_original: false,
@@ -125,7 +128,8 @@ impl PortraitWorkspace {
                 workspace.state = PortraitState::Ready;
                 let refined = builtin_portrait_settings("refined").ok();
                 workspace.settings = vec![refined.clone().unwrap_or_default(); faces.len()];
-                workspace.quick_look = refined.map(|_| "refined".into());
+                workspace.quick_look = refined.as_ref().map(|_| "refined".into());
+                workspace.look_color = refined.map(|_| "refined".into());
                 workspace.faces = faces;
             }
             Err(error) => {
@@ -428,6 +432,7 @@ impl EditorApp {
     }
 
     fn apply_portrait_workspace(&mut self, workspace: &PortraitWorkspace) -> Result<()> {
+        let quick_look_color = quick_look_color(workspace);
         let selected_face = workspace
             .faces
             .get(workspace.selected)
@@ -518,6 +523,7 @@ impl EditorApp {
                 layer.portrait = Some(recipe);
                 document.insert(layer);
             }
+            apply_quick_look_color(&mut document, quick_look_color);
             Ok(())
         })();
         match result {
@@ -1157,6 +1163,28 @@ impl EditorApp {
     }
 }
 
+fn quick_look_color(workspace: &PortraitWorkspace) -> Option<(String, ColorGrade)> {
+    let preset = PresetV1::builtin(workspace.look_color.as_deref()?).ok()?;
+    preset.color.map(|grade| (preset.name, grade))
+}
+
+fn apply_quick_look_color(document: &mut Document, color: Option<(String, ColorGrade)>) {
+    let Some((preset_name, grade)) = color else {
+        return;
+    };
+    let name = format!("{preset_name} — Color");
+    if let Some(layer) = document.layers.iter_mut().find(|layer| {
+        layer.name == name && matches!(layer.adjustment, Some(Adjustment::ColorGrade { .. }))
+    }) {
+        layer.adjustment = Some(Adjustment::ColorGrade { grade });
+        layer.visible = true;
+        return;
+    }
+    let mut layer = Layer::blank(name, document.width, document.height);
+    layer.adjustment = Some(Adjustment::ColorGrade { grade });
+    document.layers.push(layer);
+}
+
 fn builtin_portrait_settings(slug: &str) -> Result<PortraitSettings> {
     PresetV1::builtin(slug)?
         .portrait
@@ -1172,6 +1200,7 @@ fn apply_portrait_quick_look(workspace: &mut PortraitWorkspace, slug: &str) -> R
         *portrait = settings.clone();
     }
     workspace.quick_look = Some(slug.into());
+    workspace.look_color = Some(slug.into());
     workspace.invalidate_preview();
     Ok(())
 }
@@ -1184,6 +1213,7 @@ fn reset_portrait_look(workspace: &mut PortraitWorkspace) {
         liquify.strokes.clear();
     }
     workspace.quick_look = None;
+    workspace.look_color = None;
     workspace.compare_original = false;
     workspace.invalidate_preview();
 }
@@ -1205,7 +1235,7 @@ fn portrait_sync_preset(workspace: &PortraitWorkspace) -> Result<PresetV1> {
     Ok(PresetV1 {
         schema_version: 1,
         name: tr("Synced portrait").into(),
-        color: None,
+        color: quick_look_color(workspace).map(|(_, grade)| grade),
         portrait: Some(settings.clone()),
     })
 }
@@ -1264,11 +1294,58 @@ mod tests {
                 .unwrap();
 
         assert_eq!(workspace.quick_look.as_deref(), Some("refined"));
+        assert_eq!(workspace.look_color.as_deref(), Some("refined"));
         assert_eq!(
             workspace.settings[0],
             builtin_portrait_settings("refined").unwrap()
         );
         assert!(!workspace.settings[0].is_identity());
+    }
+
+    #[test]
+    fn applying_refined_quick_look_adds_the_full_visible_preset() {
+        let context = egui::Context::default();
+        let mut app = EditorApp::with_context(&context, Vec::new(), false, None);
+        app.dimensions = [64, 64];
+        app.new_document();
+        let source = RgbaImage::from_fn(64, 64, |x, y| {
+            Rgba([(72 + x) as u8, (88 + y) as u8, (105 + x / 2) as u8, 255])
+        });
+        let session = app.session_mut().unwrap();
+        session.document.active_mut().unwrap().pixels =
+            Some(Arc::new(PixelStorage::from_rgba8(source.clone())));
+        let before = xuan::render::render(&session.document);
+        let workspace =
+            PortraitWorkspace::from_analysis_with_source(Ok(vec![synthetic_landmarks()]), source)
+                .unwrap();
+
+        app.apply_portrait_workspace(&workspace).unwrap();
+
+        let document = &app.session().unwrap().document;
+        let expected = PresetV1::builtin("refined")
+            .unwrap()
+            .color
+            .expect("refined color grade");
+        assert!(document.layers.iter().any(|layer| matches!(
+            &layer.adjustment,
+            Some(xuan::document::Adjustment::ColorGrade { grade }) if grade == &expected
+        )));
+        let after = xuan::render::render(document);
+        let mean_difference = before
+            .pixels()
+            .zip(after.pixels())
+            .map(|(a, b)| {
+                (0..3)
+                    .map(|channel| (i16::from(a[channel]) - i16::from(b[channel])).unsigned_abs())
+                    .sum::<u16>() as f64
+                    / 3.0
+            })
+            .sum::<f64>()
+            / (before.width() * before.height()) as f64;
+        assert!(
+            mean_difference > 3.0,
+            "refined quick look should visibly change the image, got {mean_difference:.3}"
+        );
     }
 
     #[test]
@@ -1296,6 +1373,7 @@ mod tests {
         assert!(workspace.settings.iter().all(PortraitSettings::is_identity));
         assert!(workspace.liquify.as_ref().unwrap().strokes.is_empty());
         assert!(workspace.quick_look.is_none());
+        assert!(workspace.look_color.is_none());
     }
 
     #[test]
@@ -1385,6 +1463,7 @@ mod tests {
         let preset = portrait_sync_preset(&workspace).unwrap();
         assert_eq!(preset.name, "Synced portrait");
         assert_eq!(preset.portrait.unwrap().skin_smooth, 47.0);
+        assert_eq!(preset.color, PresetV1::builtin("refined").unwrap().color);
 
         workspace.settings[1] = PortraitSettings::default();
         assert!(portrait_sync_preset(&workspace).is_err());
