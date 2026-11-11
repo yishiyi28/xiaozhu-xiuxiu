@@ -1,5 +1,11 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.8.6
+
+- Fix GPU exports treating Color Grade as a standalone mask because both used the same shader kind, which made large portrait exports ignore the selected color look.
+- Include the selected quick-look color grade in the Single Portrait preview, so Hold to compare shows the same visible result that will be exported.
+- Make Hold to compare track the active pointer press on its button and add regression coverage for the GPU export, preview, and hold interactions.
+
 ## 0.8.5
 
 - Fix the Refined quick look in Single Portrait applying only subtle face retouching while silently omitting the preset's color grade, which made the applied and exported photo look unchanged.
