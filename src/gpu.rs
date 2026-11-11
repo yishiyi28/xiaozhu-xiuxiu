@@ -901,7 +901,10 @@ fn parameters(document: &Document, layer: &Layer, size: [u32; 2]) -> Parameters 
                 ];
             }
             Adjustment::ColorGrade { grade } => {
-                p.flags[1] = 12;
+                // Keep this distinct from kind 12, which is the standalone-mask
+                // compositor branch. Reusing 12 silently turns Color Grade into
+                // a mask operation on GPU exports.
+                p.flags[1] = 14;
                 p.first = [
                     grade.exposure,
                     grade.contrast,
@@ -1091,6 +1094,58 @@ impl Processor {
 mod tests {
     use super::*;
     use image::Rgba;
+
+    #[test]
+    fn color_grade_kind_does_not_collide_with_standalone_mask() {
+        let document = Document::new(256, 192).unwrap();
+        let mut layer = Layer::blank("Color grade", 256, 192);
+        layer.adjustment = Some(Adjustment::ColorGrade {
+            grade: crate::document::ColorGrade {
+                exposure: 0.2,
+                contrast: 8.0,
+                highlights: -14.0,
+                shadows: 16.0,
+                temperature: 2.0,
+                vibrance: 14.0,
+                ..Default::default()
+            },
+        });
+        let params = parameters(&document, &layer, [256, 192]);
+        assert_ne!(
+            params.flags[1], 12,
+            "Color grade must not use the standalone-mask shader kind"
+        );
+    }
+
+    #[test]
+    #[ignore = "requires a Vulkan or OpenGL compute adapter"]
+    fn full_size_color_grade_matches_cpu_export() {
+        let instance = wgpu::Instance::new(&Default::default());
+        let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
+        let processor = Processor::new(device, queue);
+        let mut document = Document::new(256, 192).unwrap();
+        let base = Layer::image(
+            "Base",
+            RgbaImage::from_pixel(256, 192, Rgba([60, 110, 170, 255])),
+        );
+        let mut color = Layer::blank("Color", 256, 192);
+        color.adjustment = Some(Adjustment::ColorGrade {
+            grade: crate::document::ColorGrade {
+                exposure: 0.2,
+                contrast: 8.0,
+                highlights: -14.0,
+                shadows: 16.0,
+                temperature: 2.0,
+                vibrance: 14.0,
+                ..Default::default()
+            },
+        });
+        document.layers = vec![base, color];
+        let actual = scope(Some(processor), || render::render(&document));
+        compare(&document, actual.as_raw(), "Color grade full-size export");
+    }
 
     #[test]
     #[ignore = "requires a Vulkan or OpenGL compute adapter"]

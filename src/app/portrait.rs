@@ -335,6 +335,7 @@ fn refresh_workspace_preview(context: &egui::Context, workspace: &mut PortraitWo
     };
     match result {
         Ok(image) => {
+            let image = apply_workspace_look_color(workspace, image);
             workspace.preview = Some(preview_texture(context, &image));
             workspace.error = None;
         }
@@ -875,8 +876,7 @@ impl EditorApp {
                                     widgets::Button::new(tr("Hold to compare")),
                                 )
                                 .on_hover_text(tr("Show original (hold Shift+P)"));
-                            hold_compare = compare_button.hovered()
-                                && context.input(|input| input.pointer.primary_down());
+                            hold_compare = hold_compare_active(&compare_button);
                             widgets::checkbox(
                                 ui,
                                 &mut workspace.compare_original,
@@ -1044,8 +1044,7 @@ impl EditorApp {
                                     widgets::Button::new(tr("Hold to compare")),
                                 )
                                 .on_hover_text(tr("Show original (hold Shift+P)"));
-                            hold_compare = compare_button.hovered()
-                                && context.input(|input| input.pointer.primary_down());
+                            hold_compare = hold_compare_active(&compare_button);
                             widgets::checkbox(
                                 ui,
                                 &mut workspace.compare_original,
@@ -1163,6 +1162,14 @@ impl EditorApp {
     }
 }
 
+fn apply_workspace_look_color(workspace: &PortraitWorkspace, image: RgbaImage) -> RgbaImage {
+    if let Some((_, grade)) = quick_look_color(workspace) {
+        grade.apply_rgba8(&image)
+    } else {
+        image
+    }
+}
+
 fn quick_look_color(workspace: &PortraitWorkspace) -> Option<(String, ColorGrade)> {
     let preset = PresetV1::builtin(workspace.look_color.as_deref()?).ok()?;
     preset.color.map(|grade| (preset.name, grade))
@@ -1183,6 +1190,10 @@ fn apply_quick_look_color(document: &mut Document, color: Option<(String, ColorG
     let mut layer = Layer::blank(name, document.width, document.height);
     layer.adjustment = Some(Adjustment::ColorGrade { grade });
     document.layers.push(layer);
+}
+
+fn hold_compare_active(response: &egui::Response) -> bool {
+    response.is_pointer_button_down_on()
 }
 
 fn builtin_portrait_settings(slug: &str) -> Result<PortraitSettings> {
@@ -1287,6 +1298,51 @@ mod tests {
     }
 
     #[test]
+    fn hold_compare_tracks_pointer_press_on_the_button() {
+        let context = egui::Context::default();
+        let mut input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(320.0, 160.0),
+            )),
+            ..Default::default()
+        };
+        let _ = context.run(input.clone(), |_| {});
+
+        let mut warmup = input.clone();
+        warmup.events = vec![egui::Event::PointerMoved(egui::pos2(80.0, 40.0))];
+        let _ = context.run(warmup, |context| {
+            egui::CentralPanel::default().show(context, |ui| {
+                let _ = ui.put(
+                    egui::Rect::from_min_size(egui::pos2(24.0, 24.0), egui::vec2(140.0, 28.0)),
+                    widgets::Button::new("Hold"),
+                );
+            });
+        });
+
+        input.events = vec![egui::Event::PointerButton {
+            pos: egui::pos2(80.0, 40.0),
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        }];
+        let mut held = false;
+        let _ = context.run(input, |context| {
+            egui::CentralPanel::default().show(context, |ui| {
+                let response = ui.put(
+                    egui::Rect::from_min_size(egui::pos2(24.0, 24.0), egui::vec2(140.0, 28.0)),
+                    widgets::Button::new("Hold"),
+                );
+                held = hold_compare_active(&response);
+            });
+        });
+        assert!(
+            held,
+            "holding the compare button should activate the original preview"
+        );
+    }
+
+    #[test]
     fn face_analysis_starts_with_the_refined_recommended_look() {
         let source = RgbaImage::new(64, 64);
         let workspace =
@@ -1300,6 +1356,34 @@ mod tests {
             builtin_portrait_settings("refined").unwrap()
         );
         assert!(!workspace.settings[0].is_identity());
+    }
+
+    #[test]
+    fn refined_workspace_preview_includes_the_visible_color_grade() {
+        let source = RgbaImage::from_fn(64, 64, |x, y| {
+            Rgba([(72 + x) as u8, (88 + y) as u8, (105 + x / 2) as u8, 255])
+        });
+        let workspace = PortraitWorkspace::from_analysis_with_source(
+            Ok(vec![synthetic_landmarks()]),
+            source.clone(),
+        )
+        .unwrap();
+        let preview = apply_workspace_look_color(&workspace, source.clone());
+        let mean_difference = source
+            .pixels()
+            .zip(preview.pixels())
+            .map(|(a, b)| {
+                (0..3)
+                    .map(|channel| (i16::from(a[channel]) - i16::from(b[channel])).unsigned_abs())
+                    .sum::<u16>() as f64
+                    / 3.0
+            })
+            .sum::<f64>()
+            / (source.width() * source.height()) as f64;
+        assert!(
+            mean_difference > 3.0,
+            "portrait workspace preview should include the selected look, got {mean_difference:.3}"
+        );
     }
 
     #[test]

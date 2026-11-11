@@ -226,7 +226,7 @@ fn adjust(rgb: vec3<f32>, point: vec2<f32>) -> vec3<f32> {
             let delta = film_grain(point, a) * a.x / 100.0 * 0.35 * (0.4 + 2.4 * level * (1.0 - level));
             return rgb + delta;
         }
-        case 12u: {
+        case 14u: {
             let grade = params.points[0];
             var color = rgb * exp2(a.x);
             var level = dot(color, vec3(0.2126, 0.7152, 0.0722));
