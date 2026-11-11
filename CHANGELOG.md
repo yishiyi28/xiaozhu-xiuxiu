@@ -1,5 +1,11 @@
 # 小猪修修（原 XUAN）更新日志
 
+## 0.8.5
+
+- Fix the Refined quick look in Single Portrait applying only subtle face retouching while silently omitting the preset's color grade, which made the applied and exported photo look unchanged.
+- Keep the selected quick-look color grade when portrait sliders are adjusted, and carry it into folder sync presets.
+- Add regression coverage requiring the Refined apply/export path to produce a clearly visible image difference.
+
 ## 0.8.4
 
 - Add a Refined portrait look that combines skin retouching, eye and lip enhancement, and a subtle face-shape lift.
